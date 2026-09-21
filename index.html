@@ -2,13 +2,29 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Módulo GPS — Flota</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Consumos de vehículos</title>
+
+<!-- PWA: instalable en escritorio y en pantalla de inicio del celular -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0d9488">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Consumos">
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   :root{
+    --teal-700:#0f766e;
+    --teal-600:#0d9488;
+    --teal-500:#14b8a6;
+    --teal-50:#f0fdfa;
     --navy-950:#0f172a;
     --navy-900:#152238;
     --navy-800:#1c2e4a;
@@ -23,15 +39,26 @@
     --green:#2f9e5b;
     --red:#c0432f;
     --gray-mid:#8b93a3;
+
+    /* tintes de las tarjetas KPI (bg claro + color de ícono/valor) */
+    --kpi-blue-bg:#eaf2ff;   --kpi-blue-fg:#2f6fed;
+    --kpi-green-bg:#e9f9ef;  --kpi-green-fg:#22a55e;
+    --kpi-teal-bg:#e6fbf7;   --kpi-teal-fg:#0d9488;
+    --kpi-amber-bg:#fff2e2;  --kpi-amber-fg:#e08a1c;
+    --kpi-violet-bg:#f3ecfd; --kpi-violet-fg:#8b5cf6;
+    --kpi-rose-bg:#fdeef0;   --kpi-rose-fg:#e0577a;
+
     --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --font-mono: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
-    --radius: 6px;
+    --radius: 10px;
+    --radius-sm: 7px;
+    --shadow-card: 0 1px 2px rgba(15,23,42,.04), 0 4px 14px rgba(15,23,42,.05);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;height:100%;}
   body{
     font-family:var(--font-ui);
-    background:var(--slate-50);
+    background:#f4f6f8;
     color:var(--slate-800);
     font-size:14px;
     line-height:1.45;
@@ -44,88 +71,145 @@
   /* ---------- Layout shell ---------- */
   #app{display:flex;min-height:100vh;}
   .sidebar{
-    width:220px;flex:none;background:var(--navy-950);color:#cfd8e8;
-    display:flex;flex-direction:column;padding:20px 0;
+    width:216px;flex:none;background:#fff;color:var(--slate-600);
+    display:flex;flex-direction:column;padding:20px 12px;border-right:1px solid var(--slate-200);
   }
-  .sidebar .brand{
-    padding:0 20px 20px 20px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;
+  .sidebar .brand{display:flex;align-items:center;gap:10px;padding:0 8px 18px 8px;margin-bottom:10px;}
+  .sidebar .brand .pin{
+    width:34px;height:34px;border-radius:10px;background:var(--teal-600);color:#fff;
+    display:flex;align-items:center;justify-content:center;flex:none;
   }
-  .sidebar .brand .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--amber);margin-right:8px;}
-  .sidebar .brand .name{font-weight:700;font-size:15px;color:#fff;letter-spacing:.2px;}
-  .sidebar .brand .sub{font-size:11.5px;color:var(--slate-400);margin-top:2px;}
+  .sidebar .brand .pin svg{width:18px;height:18px;}
+  .sidebar .brand .name{font-weight:700;font-size:14.5px;color:var(--navy-950);letter-spacing:.1px;}
+  .sidebar .brand .sub{font-size:11px;color:var(--slate-400);margin-top:1px;}
   .nav-item{
-    display:flex;align-items:center;gap:10px;padding:10px 20px;color:#aab4c8;
-    text-decoration:none;font-size:13.5px;font-weight:500;border-left:3px solid transparent;
-    background:none;border-top:none;border-bottom:none;border-right:none;width:100%;text-align:left;
+    display:flex;align-items:center;gap:10px;padding:9px 10px;color:var(--slate-600);
+    text-decoration:none;font-size:13.5px;font-weight:600;border-radius:var(--radius-sm);
+    background:none;border:none;width:100%;text-align:left;margin-bottom:2px;
   }
-  .nav-item:hover{background:rgba(255,255,255,.04);color:#fff;}
-  .nav-item.active{background:rgba(230,169,27,.1);color:#fff;border-left-color:var(--amber);}
-  .nav-item svg{width:16px;height:16px;flex:none;opacity:.9;}
-  .sidebar-foot{margin-top:auto;padding:14px 20px 0 20px;border-top:1px solid rgba(255,255,255,.08);}
+  .nav-item .ic{
+    width:28px;height:28px;border-radius:8px;background:var(--slate-100);color:var(--slate-600);
+    display:flex;align-items:center;justify-content:center;flex:none;
+  }
+  .nav-item .ic svg{width:15px;height:15px;}
+  .nav-item:hover{background:var(--slate-50);color:var(--navy-950);}
+  .nav-item.active{background:var(--teal-50);color:var(--teal-700);}
+  .nav-item.active .ic{background:var(--teal-600);color:#fff;}
+  .sidebar-foot{margin-top:auto;padding:10px 8px 0 8px;border-top:1px solid var(--slate-100);}
   .sidebar-foot button{
-    background:none;border:none;color:var(--slate-400);font-size:12px;padding:6px 0;
+    background:none;border:none;color:var(--slate-400);font-size:11.5px;padding:6px 0;text-align:left;width:100%;
   }
-  .sidebar-foot button:hover{color:#fff;}
+  .sidebar-foot button:hover{color:var(--navy-950);}
 
   .main{flex:1;min-width:0;display:flex;flex-direction:column;}
   .topbar{
-    padding:18px 28px;border-bottom:1px solid var(--slate-200);background:#fff;
-    display:flex;align-items:baseline;justify-content:space-between;
+    padding:16px 26px;border-bottom:1px solid var(--slate-200);background:#fff;
+    display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
   }
-  .topbar h1{font-size:19px;margin:0;font-weight:700;color:var(--navy-950);}
-  .topbar .meta{font-size:12.5px;color:var(--slate-600);}
-  .content{padding:24px 28px 60px 28px;flex:1;}
+  .topbar-titles{display:flex;align-items:center;gap:10px;}
+  .topbar-titles .ic{
+    width:34px;height:34px;border-radius:10px;background:var(--teal-50);color:var(--teal-600);
+    display:flex;align-items:center;justify-content:center;flex:none;
+  }
+  .topbar-titles .ic svg{width:17px;height:17px;}
+  .topbar h1{font-size:16.5px;margin:0;font-weight:700;color:var(--navy-950);}
+  .topbar .meta{font-size:12px;color:var(--slate-400);}
+  .topbar-actions{display:flex;align-items:center;gap:8px;}
+  .icon-btn{
+    width:34px;height:34px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);background:#fff;
+    display:flex;align-items:center;justify-content:center;color:var(--slate-600);flex:none;position:relative;
+  }
+  .icon-btn:hover{background:var(--slate-50);}
+  .icon-btn svg{width:16px;height:16px;}
+  .content{padding:22px 26px 90px 26px;flex:1;}
 
-  /* ---------- Filters ---------- */
-  .filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;}
-  .filters select{
-    padding:7px 10px;border:1px solid var(--slate-200);border-radius:var(--radius);
-    background:#fff;color:var(--slate-800);min-width:140px;
+  /* ---------- Filters (pill selects with icon) ---------- */
+  .filters{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:20px;}
+  .filter-pill{
+    position:relative;display:flex;align-items:center;border:1px solid var(--slate-200);
+    border-radius:99px;background:#fff;padding:0 12px 0 10px;height:36px;
   }
+  .filter-pill svg{width:14px;height:14px;color:var(--slate-400);flex:none;}
+  .filter-pill select{
+    border:none;background:transparent;padding:0 4px 0 8px;color:var(--slate-800);
+    min-width:118px;font-weight:500;appearance:none;-webkit-appearance:none;
+  }
+  .filter-pill select:focus{outline:none;}
 
   /* ---------- KPI cards ---------- */
-  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:26px;}
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-bottom:24px;}
   .kpi-card{
-    background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius);
-    padding:14px 16px;position:relative;
+    border-radius:var(--radius);padding:16px 18px;position:relative;background:#fff;
+    box-shadow:var(--shadow-card);
   }
-  .kpi-card .label{font-size:11.5px;color:var(--slate-600);margin-bottom:6px;}
-  .kpi-card .value{font-family:var(--font-mono);font-size:22px;font-weight:600;color:var(--navy-950);}
-  .kpi-card .unit{font-size:11.5px;color:var(--slate-400);margin-left:3px;}
+  .kpi-card.tint .kpi-icon{background:rgba(255,255,255,.6);}
+  .kpi-card .kpi-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
+  .kpi-icon{
+    width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:none;
+  }
+  .kpi-icon svg{width:17px;height:17px;}
+  .kpi-trend{
+    display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;
+  }
+  .kpi-trend.up{background:#e6f9ed;color:#16a34a;}
+  .kpi-trend.down{background:#fdeeec;color:#dc4c3f;}
+  .kpi-trend svg{width:10px;height:10px;}
+  .kpi-trend-caption{font-size:10px;color:var(--slate-400);text-align:right;margin-top:2px;}
+  .kpi-card .label{font-size:12px;color:var(--slate-600);margin-bottom:4px;font-weight:600;}
+  .kpi-card .value{font-size:22px;font-weight:700;color:var(--navy-950);letter-spacing:-.2px;}
+  .kpi-card .unit{font-size:12px;color:var(--slate-400);margin-left:3px;font-weight:600;}
+  .kpi-card .caption{font-size:11px;color:var(--slate-400);margin-top:5px;}
 
   /* ---------- Cards / panels ---------- */
-  .panel{background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius);margin-bottom:22px;}
-  .panel-head{padding:14px 18px;border-bottom:1px solid var(--slate-100);display:flex;justify-content:space-between;align-items:center;}
+  .panel{background:#fff;border-radius:var(--radius);margin-bottom:22px;box-shadow:var(--shadow-card);}
+  .panel-head{padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+  .panel-head-left{display:flex;align-items:center;gap:10px;}
+  .panel-head-left .ic{
+    width:30px;height:30px;border-radius:9px;background:var(--teal-50);color:var(--teal-600);
+    display:flex;align-items:center;justify-content:center;flex:none;
+  }
+  .panel-head-left .ic svg{width:15px;height:15px;}
   .panel-head h2{font-size:14.5px;margin:0;font-weight:700;color:var(--navy-950);}
-  .panel-body{padding:18px;}
+  .panel-head .sub{font-size:11.5px;color:var(--slate-400);margin-top:1px;}
+  .panel-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .panel-body{padding:0 18px 18px 18px;}
 
   /* ---------- Tables ---------- */
   table{width:100%;border-collapse:collapse;font-size:13px;}
   th{
-    text-align:left;font-size:11px;color:var(--slate-600);font-weight:600;
-    padding:8px 10px;border-bottom:1px solid var(--slate-200);white-space:nowrap;
+    text-align:left;font-size:11px;color:var(--slate-400);font-weight:700;text-transform:uppercase;letter-spacing:.03em;
+    padding:10px 12px;border-bottom:1px solid var(--slate-100);white-space:nowrap;
   }
-  td{padding:9px 10px;border-bottom:1px solid var(--slate-100);white-space:nowrap;}
+  th .sort-ic{display:inline-block;width:10px;height:10px;margin-left:3px;opacity:.5;vertical-align:middle;}
+  td{padding:11px 12px;border-bottom:1px solid var(--slate-100);white-space:nowrap;}
   tr:last-child td{border-bottom:none;}
-  td.num,th.num{text-align:right;font-family:var(--font-mono);}
+  td.num,th.num{text-align:right;}
   .table-wrap{overflow-x:auto;}
   .row-click{cursor:pointer;}
   .row-click:hover{background:var(--slate-50);}
+  .row-chevron{color:var(--slate-400);}
+  .row-chevron svg{width:15px;height:15px;}
 
-  /* ---------- Badges ---------- */
-  .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:600;}
+  /* ---------- Pills / Badges ---------- */
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:700;}
   .badge.nuevo{background:#e4f5ea;color:var(--green);}
   .badge.actualizar{background:#fdf1da;color:var(--amber-dark);}
   .badge.sin-cambios{background:var(--slate-100);color:var(--slate-600);}
   .badge.error{background:#fbe6e2;color:var(--red);}
   .badge.atipico{background:#fdf1da;color:var(--amber-dark);}
+  .pill-zona{display:inline-block;padding:3px 11px;border-radius:99px;font-size:11.5px;font-weight:600;background:var(--kpi-blue-bg);color:var(--kpi-blue-fg);}
+  .pill-estado{display:inline-block;padding:3px 11px;border-radius:99px;font-size:11.5px;font-weight:600;}
+  .pill-estado.activo{background:#e6f9ed;color:#16a34a;}
+  .pill-estado.inactivo{background:var(--slate-100);color:var(--slate-600);}
 
   /* ---------- Buttons ---------- */
   .btn{
-    padding:8px 16px;border-radius:var(--radius);border:1px solid transparent;font-weight:600;font-size:13px;
+    display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:var(--radius-sm);
+    border:1px solid transparent;font-weight:600;font-size:13px;
   }
-  .btn-primary{background:var(--navy-950);color:#fff;}
-  .btn-primary:hover{background:var(--navy-800);}
+  .btn svg{width:14px;height:14px;}
+  .btn-primary{background:var(--teal-600);color:#fff;}
+  .btn-primary:hover{background:var(--teal-700);}
   .btn-primary:disabled{background:var(--slate-400);cursor:not-allowed;}
   .btn-secondary{background:#fff;color:var(--slate-800);border-color:var(--slate-200);}
   .btn-secondary:hover{background:var(--slate-50);}
@@ -134,11 +218,12 @@
 
   /* ---------- Import zone ---------- */
   .dropzone{
-    border:2px dashed var(--slate-200);border-radius:8px;padding:40px 20px;text-align:center;
+    border:2px dashed var(--slate-200);border-radius:12px;padding:40px 20px;text-align:center;
     color:var(--slate-600);background:var(--slate-50);
   }
-  .dropzone.drag{border-color:var(--amber);background:#fdf6e6;}
-  .dropzone .icon{font-size:26px;margin-bottom:8px;}
+  .dropzone.drag{border-color:var(--teal-500);background:var(--teal-50);}
+  .dropzone .icon{margin-bottom:10px;color:var(--teal-600);display:flex;justify-content:center;}
+  .dropzone .icon svg{width:30px;height:30px;}
   .dropzone input[type=file]{display:none;}
 
   .summary-strip{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0;}
@@ -152,36 +237,86 @@
   /* ---------- Config screen ---------- */
   .config-screen{
     min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--navy-950);
+    padding:20px;
   }
-  .config-box{background:#fff;border-radius:10px;padding:36px;width:420px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+  .config-box{background:#fff;border-radius:14px;padding:32px;width:420px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35);}
   .config-box h1{font-size:18px;margin:0 0 4px 0;color:var(--navy-950);}
   .config-box p{font-size:12.5px;color:var(--slate-600);margin:0 0 20px 0;}
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:12px;font-weight:600;color:var(--slate-800);margin-bottom:5px;}
-  .field input{width:100%;padding:9px 11px;border:1px solid var(--slate-200);border-radius:var(--radius);}
+  .field input{width:100%;padding:9px 11px;border:1px solid var(--slate-200);border-radius:var(--radius-sm);}
   .field .hint{font-size:11px;color:var(--slate-400);margin-top:4px;}
 
   .toast{
     position:fixed;bottom:20px;right:20px;background:var(--navy-950);color:#fff;padding:12px 18px;
-    border-radius:var(--radius);font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:999;max-width:340px;
+    border-radius:var(--radius-sm);font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:999;max-width:340px;
   }
   .toast.error{background:var(--red);}
   .toast.success{background:var(--green);}
 
   .empty{padding:40px 20px;text-align:center;color:var(--slate-400);font-size:13px;}
-  .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--slate-200);border-top-color:var(--navy-950);border-radius:50%;animation:spin .7s linear infinite;}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--slate-200);border-top-color:var(--teal-600);border-radius:50%;animation:spin .7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
 
-  .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;z-index:998;}
-  .modal{background:#fff;border-radius:8px;padding:26px;width:420px;max-width:90vw;}
+  .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;z-index:998;padding:16px;}
+  .modal{background:#fff;border-radius:12px;padding:26px;width:420px;max-width:100%;}
   .modal h3{margin:0 0 8px 0;font-size:15px;}
   .modal p{font-size:13px;color:var(--slate-600);margin:0 0 18px 0;}
-  .modal .actions{display:flex;justify-content:flex-end;gap:8px;}
+  .modal .actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
 
   .warn-icon{color:var(--amber-dark);}
   .muted{color:var(--slate-400);}
   .section-title{font-size:13px;font-weight:700;color:var(--navy-950);margin:22px 0 10px 0;}
-  .vehicle-search{padding:8px 12px;border:1px solid var(--slate-200);border-radius:var(--radius);width:260px;}
+  .search-box{
+    position:relative;display:flex;align-items:center;border:1px solid var(--slate-200);border-radius:99px;
+    background:#fff;padding:0 12px;height:36px;
+  }
+  .search-box svg{width:14px;height:14px;color:var(--slate-400);flex:none;}
+  .search-box input{border:none;background:transparent;padding:0 0 0 8px;width:190px;color:var(--slate-800);}
+  .search-box input:focus{outline:none;}
+  .table-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+
+  /* ---------- Instalar app ---------- */
+  .install-banner{
+    display:none;align-items:center;gap:12px;background:var(--teal-50);border:1px solid #b7ece4;
+    border-radius:var(--radius);padding:12px 16px;margin-bottom:18px;
+  }
+  .install-banner.show{display:flex;}
+  .install-banner .ic{width:32px;height:32px;border-radius:9px;background:var(--teal-600);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;}
+  .install-banner .ic svg{width:16px;height:16px;}
+  .install-banner .txt{flex:1;font-size:12.5px;color:var(--teal-700);}
+  .install-banner .txt strong{display:block;font-size:13px;color:var(--navy-950);}
+
+  /* =========================================================================
+     RESPONSIVE — celular
+     ========================================================================= */
+  @media (max-width: 780px){
+    #app{flex-direction:column;}
+    .sidebar{
+      width:100%;flex-direction:row;align-items:center;padding:8px 10px;
+      border-right:none;border-bottom:1px solid var(--slate-200);
+      position:fixed;bottom:0;left:0;right:0;top:auto;z-index:50;
+      padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));
+    }
+    .sidebar .brand{display:none;}
+    .sidebar-foot{display:none;}
+    .nav-item{
+      flex-direction:column;gap:3px;font-size:10px;padding:5px 4px;flex:1;text-align:center;margin-bottom:0;
+    }
+    .nav-item .ic{margin:0 auto;}
+    .main{padding-bottom:64px;}
+    .content{padding:16px 14px 30px 14px;}
+    .topbar{padding:14px 16px;position:sticky;top:0;z-index:10;padding-top:calc(14px + env(safe-area-inset-top,0px));}
+    .topbar h1{font-size:15px;}
+    .filters{gap:7px;}
+    .filter-pill select{min-width:0;width:88px;}
+    .kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
+    .kpi-card{padding:13px 14px;}
+    .kpi-card .value{font-size:18px;}
+    .search-box input{width:120px;}
+    .config-box{padding:26px;}
+  }
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
 </style>
 </head>
 <body>
@@ -197,6 +332,38 @@ const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto'
 const MESES_CAP = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const ZONAS_CONOCIDAS_KEY = 'gps_zonas_conocidas';
 const CFG_KEY = 'gps_supabase_config';
+
+/* ---------------------------------------------------------------------
+   Íconos (SVG inline, estilo lucide) — un solo set reutilizado en toda la app
+   --------------------------------------------------------------------- */
+const ICN = {
+  pin: '<path d="M12 21s-7-6.1-7-11a7 7 0 1 1 14 0c0 4.9-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/>',
+  truck: '<rect x="1" y="7" width="14" height="10" rx="1.5"/><path d="M15 10h4l3 3.2V17h-7z"/><circle cx="6" cy="19" r="1.6"/><circle cx="17.5" cy="19" r="1.6"/>',
+  chart: '<path d="M4 19V9"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M22 19H2"/>',
+  upload: '<path d="M12 15V4"/><path d="M7 9l5-5 5 5"/><rect x="3" y="16" width="18" height="5" rx="1.5"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+  car: '<path d="M4 16V9.5l2-4h12l2 4V16"/><path d="M2 16h20v2H2z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/>',
+  tag: '<path d="M3 11.2 12.5 2h6.3a2 2 0 0 1 2 2v6.3L12 20 3 11.2z"/><circle cx="15" cy="6.5" r="1.4"/>',
+  mapPin: '<path d="M12 21s-6.5-5.8-6.5-10.2a6.5 6.5 0 1 1 13 0C18.5 15.2 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.2"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0-2.6 6"/><path d="M20 4v7h-7"/>',
+  dots: '<circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.3-4.3"/>',
+  download: '<path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/>',
+  droplet: '<path d="M12 3s6 6.8 6 11a6 6 0 1 1-12 0c0-4.2 6-11 6-11z"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  gauge: '<path d="M4.5 16a8 8 0 1 1 15 0"/><path d="M12 12l3-2.4"/><path d="M4.5 16h1.2M18.3 16h1.2"/>',
+  fuel: '<path d="M5 20V6a1.5 1.5 0 0 1 1.5-1.5H12A1.5 1.5 0 0 1 13.5 6v14"/><path d="M4 20h11"/><path d="M13.5 9h2l2.7 2.7v5.3a1.3 1.3 0 0 1-2.6 0V15"/>',
+  chevronRight: '<path d="M9 6l6 6-6 6"/>',
+  trendUp: '<path d="M4 15l6-6 4 4 6-7"/><path d="M15 6h5v5"/>',
+  trendDown: '<path d="M4 9l6 6 4-4 6 7"/><path d="M15 18h5v-5"/>',
+  sort: '<path d="M8 9l4-5 4 5"/><path d="M16 15l-4 5-4-5"/>',
+  install: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/>',
+};
+function icon(name, cls){
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${cls||''}">${ICN[name]||''}</svg>`;
+}
+const KPI_TINTS = { blue:'kpi-blue', green:'kpi-green', teal:'kpi-teal', amber:'kpi-amber', violet:'kpi-violet', rose:'kpi-rose' };
 
 /* =========================================================================
    ⚙️  CONFIGURACIÓN DE SUPABASE — reemplazar acá los dos valores
@@ -629,41 +796,65 @@ function render(){
   }
   app.innerHTML = `
     <div class="sidebar">
-      <div class="brand"><span class="dot"></span><span class="name">Módulo GPS</span><div class="sub">Flota · base_vehiculos</div></div>
-      ${navItem('resumen','Resumen GPS')}
-      ${navItem('vehiculos','Vehículos')}
-      ${navItem('historico','Histórico')}
-      ${navItem('importar','Importar Reporte')}
+      <div class="brand"><span class="pin"><img src="icon-192.png" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></span><div><div class="name">Consumos de vehículos</div><div class="sub">Flota · Base Vehículos</div></div></div>
+      ${navItem('resumen','home','Resumen GPS')}
+      ${navItem('vehiculos','truck','Vehículos')}
+      ${navItem('historico','chart','Histórico')}
+      ${navItem('importar','upload','Importar Reporte')}
       <div class="sidebar-foot">
+        <button id="btn-install" style="display:none">${icon('install')} Instalar app</button>
         <button id="btn-config">Configuración de conexión</button>
       </div>
     </div>
     <div class="main">
       <div class="topbar">
-        <h1>${viewTitle(state.view)}</h1>
-        <div class="meta" id="topbar-meta"></div>
+        <div class="topbar-titles">
+          <span class="ic">${icon(viewIcon(state.view))}</span>
+          <div><h1>${viewTitle(state.view)}</h1><div class="meta" id="topbar-meta">${viewSubtitle(state.view)}</div></div>
+        </div>
+        <div class="topbar-actions" id="topbar-actions"></div>
       </div>
       <div class="content" id="content">Cargando…</div>
     </div>
   `;
   document.getElementById('btn-config').onclick = () => { clearConfig(); state.sb=null; render(); };
   document.querySelectorAll('.nav-item[data-view]').forEach(b=>{
-    b.onclick = () => { state.view = b.dataset.view; render(); };
+    b.onclick = () => { state.view = b.dataset.view; state._vehiculoSel = null; render(); };
   });
+  bindInstallButton();
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="icon-btn" id="btn-refresh" title="Actualizar">${icon('refresh')}</button>
+    <button class="icon-btn" id="btn-dots" title="Más opciones">${icon('dots')}</button>
+  `;
+  document.getElementById('btn-refresh').onclick = () => renderView();
+  document.getElementById('btn-dots').onclick = () => {
+    const proceed = confirm('¿Cambiar la configuración de conexión a Supabase?');
+    if(proceed){ clearConfig(); state.sb=null; render(); }
+  };
   renderView();
 }
-function navItem(view, label){
+function navItem(view, iconName, label){
   const active = state.view===view ? 'active' : '';
-  return `<button class="nav-item ${active}" data-view="${view}">${label}</button>`;
+  return `<button class="nav-item ${active}" data-view="${view}"><span class="ic">${icon(iconName)}</span><span>${label}</span></button>`;
 }
 function viewTitle(v){
   return { resumen:'Resumen GPS', vehiculos:'Vehículos', historico:'Histórico', importar:'Importar Reporte' }[v] || '';
+}
+function viewIcon(v){
+  return { resumen:'home', vehiculos:'truck', historico:'chart', importar:'upload' }[v] || 'home';
+}
+function viewSubtitle(v){
+  return { resumen:'Indicadores generales y detalle por vehículo', vehiculos:'Ficha y evolución de cada unidad', historico:'Evolución mensual de la flota', importar:'Cargar y conciliar reportes Excel' }[v] || '';
 }
 
 function renderConfigScreen(){
   return `
   <div class="config-screen">
     <div class="config-box">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <span class="pin" style="width:38px;height:38px;border-radius:11px;overflow:hidden;display:flex;align-items:center;justify-content:center"><img src="icon-192.png" alt="" style="width:100%;height:100%;object-fit:cover"></span>
+        <div><div style="font-weight:700;color:var(--navy-950)">Consumos de vehículos</div><div style="font-size:11px;color:var(--slate-400)">Flota · Base Vehículos</div></div>
+      </div>
       <h1>Conectar con Supabase</h1>
       <p>Ingresá la URL y la clave pública (anon key) del proyecto <strong>base_vehiculos</strong>. Se guardan solo en este navegador.</p>
       <div class="field">
@@ -675,7 +866,7 @@ function renderConfigScreen(){
         <input id="cfg-key" placeholder="eyJhbGciOi..." />
         <div class="hint">Dashboard → Project Settings → API → Project API keys → anon public</div>
       </div>
-      <button class="btn btn-primary" id="cfg-save" style="width:100%">Guardar y conectar</button>
+      <button class="btn btn-primary" id="cfg-save" style="width:100%;justify-content:center">Guardar y conectar</button>
       <div id="cfg-error" style="color:var(--red);font-size:12px;margin-top:10px;"></div>
     </div>
   </div>`;
@@ -717,22 +908,22 @@ async function renderView(){
 function filtersBar(opts, current){
   return `
   <div class="filters">
-    <select id="f-periodo">
+    <div class="filter-pill">${icon('calendar')}<select id="f-periodo">
       <option value="">Todos los períodos</option>
       ${opts.periodos.map(p=>`<option value="${p.periodo}" ${current.periodo===p.periodo?'selected':''}>${esc(p.periodo_label)}</option>`).join('')}
-    </select>
-    <select id="f-vehiculo">
+    </select></div>
+    <div class="filter-pill">${icon('car')}<select id="f-vehiculo">
       <option value="">Todos los vehículos</option>
       ${opts.vehiculos.map(v=>`<option value="${v.dominio}" ${current.vehiculo===v.dominio?'selected':''}>${esc(v.dominio)}</option>`).join('')}
-    </select>
-    <select id="f-modelo">
+    </select></div>
+    <div class="filter-pill">${icon('tag')}<select id="f-modelo">
       <option value="">Todos los modelos</option>
       ${opts.modelos.map(m=>`<option value="${esc(m)}" ${current.modelo===m?'selected':''}>${esc(m)}</option>`).join('')}
-    </select>
-    <select id="f-zona">
+    </select></div>
+    <div class="filter-pill">${icon('mapPin')}<select id="f-zona">
       <option value="">Todas las zonas</option>
       ${opts.zonas.map(z=>`<option value="${esc(z)}" ${current.zona===z?'selected':''}>${esc(z)}</option>`).join('')}
-    </select>
+    </select></div>
   </div>`;
 }
 function bindFiltersBar(onChange){
@@ -744,6 +935,12 @@ function bindFiltersBar(onChange){
     };
   });
 }
+function periodoAnterior(key){
+  if(!key) return null;
+  let [y,m] = key.split('-').map(Number);
+  m -= 1; if(m<1){ m=12; y-=1; }
+  return `${y}-${String(m).padStart(2,'0')}`;
+}
 
 /* ---------- RESUMEN GPS ---------- */
 async function renderResumen(content){
@@ -752,53 +949,133 @@ async function renderResumen(content){
   const rows = await fetchReportesFiltrados(state.filters);
   const k = agregarKPIs(rows);
 
+  // comparación con el período anterior (solo si hay un período puntual elegido)
+  let kPrev = null;
+  if(state.filters.periodo){
+    const prevRows = await fetchReportesFiltrados({ ...state.filters, periodo: periodoAnterior(state.filters.periodo) });
+    if(prevRows.length) kPrev = agregarKPIs(prevRows);
+  }
+
+  // vehículos que reportaron en el período más reciente disponible = "activos"
+  const latestPeriodo = opts.periodos[0]?.periodo;
+  let activosSet = new Set();
+  if(latestPeriodo){
+    const activos = await sbSelect('gps_reportes','vehiculo_dominio',{periodo: latestPeriodo});
+    activosSet = new Set(activos.map(a=>a.vehiculo_dominio));
+  }
+
   content.innerHTML = `
     ${filtersBar(opts, state.filters)}
     <div class="kpi-grid">
-      ${kpiCard('Vehículos', fmtNum(k.vehiculosCount), '')}
-      ${kpiCard('Km recorridos', fmtNum(k.kmTotal,0), 'km')}
-      ${kpiCard('Litros consumidos', fmtNum(k.litrosTotal,1), 'L')}
-      ${kpiCard('Km / litro', k.kml!==null?fmtNum(k.kml,2):'—', '')}
-      ${kpiCard('Litros / 100km', k.l100!==null?fmtNum(k.l100,1):'—', '')}
-      ${kpiCard('Horas motor', fmtNum(k.horasMotor,0), 'h')}
-      ${kpiCard('Horas ralentí', fmtNum(k.horasRalenti,0), 'h')}
-      ${kpiCard('Vel. máxima', fmtNum(k.velMax,0), 'km/h')}
+      ${kpiCard({label:'Vehículos', dec:0, unit:'', iconName:'truck', tint:'blue', curr:k.vehiculosCount, prev:kPrev?.vehiculosCount, staticCaption:'Total de vehículos en el período'})}
+      ${kpiCard({label:'Km recorridos', dec:0, unit:'km', iconName:'car', tint:'green', curr:k.kmTotal, prev:kPrev?.kmTotal})}
+      ${kpiCard({label:'Litros consumidos', dec:1, unit:'L', iconName:'droplet', tint:'teal', curr:k.litrosTotal, prev:kPrev?.litrosTotal})}
+      ${kpiCard({label:'Km / litro', dec:2, unit:'', iconName:'gauge', tint:'violet', curr:k.kml, prev:kPrev?.kml})}
+      ${kpiCard({label:'Litros / 100km', dec:1, unit:'', iconName:'fuel', tint:'amber', curr:k.l100, prev:kPrev?.l100, invert:true})}
+      ${kpiCard({label:'Horas motor', dec:0, unit:'h', iconName:'clock', tint:'amber', curr:k.horasMotor, prev:kPrev?.horasMotor})}
+      ${kpiCard({label:'Horas ralentí', dec:0, unit:'h', iconName:'clock', tint:'blue', curr:k.horasRalenti, prev:kPrev?.horasRalenti, invert:true})}
+      ${kpiCard({label:'Vel. máxima', dec:0, unit:'km/h', iconName:'gauge', tint:'rose', curr:k.velMax, prev:kPrev?.velMax})}
     </div>
     <div class="panel">
-      <div class="panel-head"><h2>Detalle por vehículo${state.filters.periodo? ' — '+esc(periodoLabelFromKey(state.filters.periodo)) : ''}</h2></div>
-      <div class="panel-body table-wrap">
-        ${rows.length ? tablaReportes(rows) : `<div class="empty">No hay datos para estos filtros todavía. Cargá un reporte desde "Importar Reporte".</div>`}
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic">${icon('truck')}</span><div><h2>Detalle por vehículo</h2>${state.filters.periodo?`<div class="sub">${esc(periodoLabelFromKey(state.filters.periodo))}</div>`:''}</div></div>
+        <div class="panel-head-actions">
+          <div class="search-box">${icon('search')}<input id="tabla-search" placeholder="Buscar vehículo…"></div>
+          <button class="btn btn-secondary" id="btn-export">${icon('download')} Exportar</button>
+        </div>
+      </div>
+      <div class="panel-body table-wrap" id="tabla-detalle">
+        ${rows.length ? tablaReportes(rows, activosSet) : `<div class="empty">No hay datos para estos filtros todavía. Cargá un reporte desde "Importar Reporte".</div>`}
       </div>
     </div>
   `;
   bindFiltersBar(()=>renderView());
+  if(rows.length){
+    bindTablaReportesRows();
+    document.getElementById('tabla-search').oninput = (e) => {
+      const q = e.target.value.toLowerCase();
+      const filtered = rows.filter(r => (r.vehiculos?.dominio||'').toLowerCase().includes(q) || (r.modelo_periodo||r.vehiculos?.label||'').toLowerCase().includes(q));
+      document.getElementById('tabla-detalle').innerHTML = filtered.length ? tablaReportes(filtered, activosSet) : `<div class="empty">Sin resultados.</div>`;
+      bindTablaReportesRows();
+    };
+    document.getElementById('btn-export').onclick = () => exportarCSV(rows);
+  }
 }
-function kpiCard(label, value, unit){
-  return `<div class="kpi-card"><div class="label">${esc(label)}</div><div class="value">${value}${unit?`<span class="unit">${esc(unit)}</span>`:''}</div></div>`;
+function kpiCard({label, dec, unit, iconName, tint, curr, prev, staticCaption, invert}){
+  let trendHtml = '', caption = staticCaption || '';
+  if(prev!==undefined && prev!==null && curr!==undefined && curr!==null){
+    const diff = curr - prev;
+    const pct = prev !== 0 ? (diff/Math.abs(prev))*100 : null;
+    let good = diff >= 0;
+    if(invert) good = !good;
+    const dirIcon = diff >= 0 ? 'trendUp' : 'trendDown';
+    const pctTxt = pct!==null ? `${pct>=0?'+':''}${fmtNum(pct,0)}%` : `${diff>=0?'+':''}${fmtNum(diff,dec)}`;
+    trendHtml = `<span class="kpi-trend ${good?'up':'down'}">${icon(dirIcon)}${pctTxt}</span>`;
+    caption = `${fmtNum(prev,dec)}${unit?' '+esc(unit):''} mes anterior`;
+  }
+  const value = curr!==undefined && curr!==null ? fmtNum(curr,dec) : '—';
+  return `<div class="kpi-card tint">
+    <div class="kpi-top">
+      <span class="kpi-icon" style="background:var(--kpi-${tint}-bg);color:var(--kpi-${tint}-fg)">${icon(iconName)}</span>
+      ${trendHtml}
+    </div>
+    <div class="label">${esc(label)}</div>
+    <div class="value">${value}${unit?`<span class="unit">${esc(unit)}</span>`:''}</div>
+    ${caption?`<div class="caption">${esc(caption)}</div>`:''}
+  </div>`;
 }
-function tablaReportes(rows){
+function tablaReportes(rows, activosSet){
   const sorted = [...rows].sort((a,b)=> (a.vehiculos?.dominio||'').localeCompare(b.vehiculos?.dominio||''));
   return `<table>
     <thead><tr>
       <th>Vehículo</th><th>Modelo</th><th>Zona</th>
       <th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th>
-      <th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">Vel. máx</th><th></th>
+      <th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">Vel. máx</th><th>Estado</th><th></th>
     </tr></thead>
     <tbody>
-      ${sorted.map(r=>`<tr>
-        <td>${esc(r.vehiculos?.dominio||'—')}</td>
+      ${sorted.map(r=>{
+        const dominio = r.vehiculos?.dominio || '';
+        const activo = activosSet && activosSet.has(dominio);
+        const zona = r.zona_periodo || r.vehiculos?.region;
+        return `<tr class="row-click" data-dominio="${esc(dominio)}">
+        <td><strong>${esc(dominio||'—')}</strong>${r.es_atipico?' <span class="badge atipico">⚠</span>':''}</td>
         <td>${esc(r.modelo_periodo || r.vehiculos?.label || '—')}</td>
-        <td>${esc(r.zona_periodo || r.vehiculos?.region || '—')}</td>
+        <td>${zona?`<span class="pill-zona">${esc(zona)}</span>`:'<span class="muted">—</span>'}</td>
         <td class="num">${fmtNum(r.distancia_km,0)}</td>
         <td class="num">${fmtNum(r.litros_ypf,1)}</td>
         <td class="num">${(r.litros_ypf && r.distancia_km)? fmtNum(r.distancia_km/r.litros_ypf,2) : '—'}</td>
         <td class="num">${fmtNum(r.horas_motor,1)}</td>
         <td class="num">${fmtNum(r.horas_ralenti,1)}</td>
         <td class="num">${fmtNum(r.velocidad_maxima,0)}</td>
-        <td>${r.es_atipico?'<span class="badge atipico">⚠ atípico</span>':''}</td>
-      </tr>`).join('')}
+        <td><span class="pill-estado ${activo?'activo':'inactivo'}">${activo?'Activo':'Inactivo'}</span></td>
+        <td class="row-chevron">${icon('chevronRight')}</td>
+      </tr>`;
+      }).join('')}
     </tbody>
   </table>`;
+}
+function bindTablaReportesRows(){
+  document.querySelectorAll('#tabla-detalle tr.row-click').forEach(tr=>{
+    tr.onclick = () => { state.view='vehiculos'; state._vehiculoSel = tr.dataset.dominio; render(); };
+  });
+}
+function exportarCSV(rows){
+  const headers = ['Vehiculo','Modelo','Zona','Periodo','Km','Litros','Km_L','HsMotor','HsRalenti','VelMax'];
+  const lines = [headers.join(';')];
+  rows.forEach(r=>{
+    const kml = (r.litros_ypf && r.distancia_km) ? (r.distancia_km/r.litros_ypf).toFixed(2) : '';
+    lines.push([
+      r.vehiculos?.dominio||'', r.modelo_periodo||r.vehiculos?.label||'', r.zona_periodo||r.vehiculos?.region||'',
+      r.periodo_label||'', r.distancia_km??'', r.litros_ypf??'', kml, r.horas_motor??'', r.horas_ralenti??'', r.velocidad_maxima??''
+    ].map(v=>String(v).replace(/;/g,',')).join(';'));
+  });
+  const csv = '\uFEFF' + lines.join('\n');
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `gps_detalle_${state.filters.periodo||'todos'}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
 }
 
 /* ---------- VEHÍCULOS ---------- */
@@ -811,11 +1088,16 @@ async function renderVehiculos(content){
   }
   vehiculos.sort((a,b)=>a.dominio.localeCompare(b.dominio));
   content.innerHTML = `
-    <input class="vehicle-search" id="v-search" placeholder="Buscar dominio, modelo o zona…" />
-    <div class="panel" style="margin-top:14px">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic">${icon('truck')}</span><h2>Todos los vehículos</h2></div>
+        <div class="panel-head-actions">
+          <div class="search-box">${icon('search')}<input id="v-search" placeholder="Buscar dominio, modelo o zona…"></div>
+        </div>
+      </div>
       <div class="panel-body table-wrap">
         <table>
-          <thead><tr><th>Dominio</th><th>Modelo</th><th>Zona</th></tr></thead>
+          <thead><tr><th>Dominio</th><th>Modelo</th><th>Zona</th><th></th></tr></thead>
           <tbody id="v-tbody">
             ${vehiculos.map(v=>filaVehiculo(v)).join('')}
           </tbody>
@@ -825,7 +1107,7 @@ async function renderVehiculos(content){
     </div>
   `;
   const bindRows = () => {
-    document.querySelectorAll('.row-click').forEach(tr=>{
+    document.querySelectorAll('#v-tbody tr.row-click').forEach(tr=>{
       tr.onclick = () => { state._vehiculoSel = tr.dataset.id; renderView(); };
     });
   };
@@ -841,7 +1123,8 @@ function filaVehiculo(v){
   return `<tr class="row-click" data-id="${esc(v.dominio)}">
     <td><strong>${esc(v.dominio)}</strong></td>
     <td>${esc(v.label||'—')}</td>
-    <td>${v.region? esc(v.region) : '<span class="muted">sin asignar</span>'}</td>
+    <td>${v.region? `<span class="pill-zona">${esc(v.region)}</span>` : '<span class="muted">sin asignar</span>'}</td>
+    <td class="row-chevron">${icon('chevronRight')}</td>
   </tr>`;
 }
 async function renderVehiculoDetalle(content, vehiculoDominio){
@@ -850,35 +1133,35 @@ async function renderVehiculoDetalle(content, vehiculoDominio){
   reportes.sort((a,b)=>a.periodo.localeCompare(b.periodo));
   const k = agregarKPIs(reportes);
   content.innerHTML = `
-    <button class="btn btn-secondary" id="v-back">← Volver a vehículos</button>
+    <button class="btn btn-secondary" id="v-back"><span style="display:inline-flex;transform:scaleX(-1)">${icon('chevronRight')}</span> Volver a vehículos</button>
     <div class="panel" style="margin-top:14px">
-      <div class="panel-head"><h2>${esc(vehiculo.dominio)}</h2></div>
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic">${icon('truck')}</span><div><h2>${esc(vehiculo.dominio)}</h2><div class="sub">${esc(vehiculo.label||'Modelo sin datos')}${vehiculo.region?' · '+esc(vehiculo.region):''}</div></div></div>
+      </div>
       <div class="panel-body">
-        <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))">
-          ${kpiCard('Modelo', vehiculo.label||'—','')}
-          ${kpiCard('Zona', vehiculo.region||'—','')}
-          ${kpiCard('Km totales', fmtNum(k.kmTotal,0),'km')}
-          ${kpiCard('Litros totales', fmtNum(k.litrosTotal,1),'L')}
-          ${kpiCard('Km/L prom.', k.kml!==null?fmtNum(k.kml,2):'—','')}
-          ${kpiCard('Hs motor', fmtNum(k.horasMotor,0),'h')}
+        <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
+          ${kpiCard({label:'Km totales', dec:0, unit:'km', iconName:'car', tint:'green', curr:k.kmTotal})}
+          ${kpiCard({label:'Litros totales', dec:1, unit:'L', iconName:'droplet', tint:'teal', curr:k.litrosTotal})}
+          ${kpiCard({label:'Km/L prom.', dec:2, unit:'', iconName:'gauge', tint:'violet', curr:k.kml})}
+          ${kpiCard({label:'Hs motor', dec:0, unit:'h', iconName:'clock', tint:'amber', curr:k.horasMotor})}
         </div>
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head"><h2>Evolución mensual</h2></div>
+      <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('chart')}</span><h2>Evolución mensual</h2></div></div>
       <div class="panel-body">
         ${reportes.length ? '<canvas id="v-chart" height="90"></canvas>' : '<div class="empty">Sin histórico todavía para este vehículo.</div>'}
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head"><h2>Reportes por período</h2></div>
+      <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('calendar')}</span><h2>Reportes por período</h2></div></div>
       <div class="panel-body table-wrap">
         <table>
           <thead><tr><th>Período</th><th>Zona</th><th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th><th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">Vel. máx</th></tr></thead>
           <tbody>
             ${reportes.map(r=>`<tr>
               <td>${esc(r.periodo_label)}</td>
-              <td>${esc(r.zona_periodo || vehiculo.region || '—')}</td>
+              <td>${(r.zona_periodo || vehiculo.region) ? `<span class="pill-zona">${esc(r.zona_periodo || vehiculo.region)}</span>` : '<span class="muted">—</span>'}</td>
               <td class="num">${fmtNum(r.distancia_km,0)}</td>
               <td class="num">${fmtNum(r.litros_ypf,1)}</td>
               <td class="num">${(r.litros_ypf && r.distancia_km)? fmtNum(r.distancia_km/r.litros_ypf,2) : '—'}</td>
@@ -929,13 +1212,13 @@ async function renderHistorico(content){
   content.innerHTML = `
     ${filtersBar({...opts, periodos:[]}, state.filters)}
     <div class="panel">
-      <div class="panel-head"><h2>Evolución mensual</h2></div>
+      <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('chart')}</span><h2>Evolución mensual</h2></div></div>
       <div class="panel-body">
         ${periodos.length ? '<canvas id="h-chart" height="90"></canvas>' : '<div class="empty">Todavía no hay más de un período cargado para mostrar evolución.</div>'}
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head"><h2>Detalle por período</h2></div>
+      <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('calendar')}</span><h2>Detalle por período</h2></div></div>
       <div class="panel-body table-wrap">
         <table>
           <thead><tr><th>Período</th><th class="num">Vehículos</th><th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th><th class="num">Hs motor</th><th class="num">Hs ralentí</th></tr></thead>
@@ -979,19 +1262,19 @@ async function renderHistorico(content){
 async function renderImportar(content){
   content.innerHTML = `
     <div class="panel">
-      <div class="panel-head"><h2>Cargar archivo Excel</h2></div>
+      <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('upload')}</span><h2>Cargar archivo Excel</h2></div></div>
       <div class="panel-body">
         <div class="dropzone" id="dz">
-          <div class="icon">📄</div>
+          <div class="icon">${icon('upload')}</div>
           <div><strong>Arrastrá el archivo acá</strong> o hacé clic para elegirlo</div>
-          <div class="muted" style="margin-top:4px;font-size:12px">Formato esperado: hoja "Resumen" con columnas Dispositivo, Fecha de inicio, Horas motor, Horas en ralentí, Distancia, Velocidad máxima, Litros YPF</div>
+          <div class="muted" style="margin-top:4px;font-size:12px">Acepta cualquier formato de reporte GPS, siempre que tenga los encabezados: Dispositivo, Fecha de inicio, Horas motor, Horas en ralentí, Distancia, Velocidad máxima, Litros YPF</div>
           <input type="file" id="file-input" accept=".xlsx,.xls" />
         </div>
       </div>
     </div>
     <div id="import-result"></div>
     <div class="panel">
-      <div class="panel-head"><h2>Cargas anteriores</h2></div>
+      <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('calendar')}</span><h2>Cargas anteriores</h2></div></div>
       <div class="panel-body table-wrap" id="historial-cargas"><div class="empty"><span class="spin"></span></div></div>
     </div>
   `;
@@ -1131,7 +1414,7 @@ function renderPreview(resultEl){
 
   resultEl.innerHTML = `
     <div class="panel">
-      <div class="panel-head"><h2>Reporte detectado</h2></div>
+      <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('search')}</span><h2>Reporte detectado</h2></div></div>
       <div class="panel-body">
         <p><strong>Archivo:</strong> ${esc(state.importState.file.name)} &nbsp; · &nbsp; <strong>Período${multiPeriodo?'s':''}:</strong> ${esc(parsed.periodoLabel)} &nbsp; · &nbsp; <strong>Registros:</strong> ${parsed.totalFilas}</p>
         <div class="summary-strip">
@@ -1297,6 +1580,35 @@ function confirmModal(title, body, confirmLabel){
     document.body.appendChild(bg);
     bg.querySelector('#m-cancel').onclick = () => { bg.remove(); resolve(false); };
     bg.querySelector('#m-ok').onclick = () => { bg.remove(); resolve(true); };
+  });
+}
+
+/* ---------------------------------------------------------------------
+   PWA — instalar en escritorio / agregar a pantalla de inicio
+   --------------------------------------------------------------------- */
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('btn-install');
+  if(btn) btn.style.display = 'flex';
+});
+window.addEventListener('appinstalled', () => { deferredInstallPrompt = null; });
+function bindInstallButton(){
+  const btn = document.getElementById('btn-install');
+  if(!btn) return;
+  if(deferredInstallPrompt) btn.style.display = 'flex';
+  btn.onclick = async () => {
+    if(!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    btn.style.display = 'none';
+  };
+}
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{ /* sin service worker no rompe la app, solo no queda instalable/offline */ });
   });
 }
 
