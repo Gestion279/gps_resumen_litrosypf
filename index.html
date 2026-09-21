@@ -198,6 +198,14 @@ const MESES_CAP = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Ago
 const ZONAS_CONOCIDAS_KEY = 'gps_zonas_conocidas';
 const CFG_KEY = 'gps_supabase_config';
 
+/* =========================================================================
+   ⚙️  CONFIGURACIÓN DE SUPABASE — reemplazar acá los dos valores
+   Project Settings → API → Project URL / anon public key
+   ========================================================================= */
+const DEFAULT_SUPABASE_URL = 'https://oixzkvkybqexvrzwzwis.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'PEGAR_ACA_LA_ANON_KEY';
+/* ========================================================================= */
+
 let state = {
   view: 'resumen',
   sb: null,
@@ -209,7 +217,14 @@ let state = {
    Config (URL + anon key) — se guarda en localStorage del navegador
    --------------------------------------------------------------------- */
 function getConfig(){
-  try{ return JSON.parse(localStorage.getItem(CFG_KEY) || 'null'); }catch(e){ return null; }
+  try{
+    const saved = JSON.parse(localStorage.getItem(CFG_KEY) || 'null');
+    if(saved && saved.url && saved.anonKey) return saved;
+  }catch(e){}
+  if(DEFAULT_SUPABASE_URL && DEFAULT_SUPABASE_ANON_KEY && DEFAULT_SUPABASE_ANON_KEY !== 'PEGAR_ACA_LA_ANON_KEY'){
+    return { url: DEFAULT_SUPABASE_URL, anonKey: DEFAULT_SUPABASE_ANON_KEY };
+  }
+  return null;
 }
 function saveConfig(cfg){
   try{ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }catch(e){}
