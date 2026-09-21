@@ -497,14 +497,51 @@ function detectarEncabezados(rows){
   return mejor.matches >= 2 ? mejor : null; // dispositivo + al menos 1 campo más
 }
 
+// Detecta patentes partidas en 2 o 3 bloques por espacios y las une en un
+// solo token, para que nunca quede un dominio incompleto.
+//   Vieja  (pre-2016): LLL NNN        -> LLLNNN     ej "PKS 223"   -> "PKS223"
+//   Nueva  (2016+):    LL NNN LL      -> LLNNNLL    ej "AC 858 HC" -> "AC858HC"
+//                      LLNNN LL       -> LLNNNLL    ej "AC858 HC"  -> "AC858HC"
+//                      LL NNNLL       -> LLNNNLL    ej "AC 858HC"  -> "AC858HC"
+function juntarPatentePartida(parts){
+  const out = [];
+  let i = 0;
+  while(i < parts.length){
+    const a = parts[i], b = parts[i+1], c = parts[i+2];
+    // nueva en 3 bloques: LL + NNN + LL
+    if(a && b && c && /^[A-Z]{2}$/i.test(a) && /^\d{3}$/.test(b) && /^[A-Z]{2}$/i.test(c)){
+      out.push(a+b+c); i += 3; continue;
+    }
+    // nueva en 2 bloques: LLNNN + LL   ó   LL + NNNLL
+    if(a && b && (
+        (/^[A-Z]{2}\d{3}$/i.test(a) && /^[A-Z]{2}$/i.test(b)) ||
+        (/^[A-Z]{2}$/i.test(a) && /^\d{3}[A-Z]{2}$/i.test(b))
+      )){
+      out.push(a+b); i += 2; continue;
+    }
+    // vieja en 2 bloques: LLL + NNN
+    if(a && b && /^[A-Z]{3}$/i.test(a) && /^\d{3}$/.test(b)){
+      out.push(a+b); i += 2; continue;
+    }
+    out.push(a); i += 1;
+  }
+  return out;
+}
+
 function parseDispositivo(raw){
   const txt = normalizarTextoConservandoMayus(raw);
-  const parts = txt.split(' ').filter(Boolean);
+  let parts = txt.split(' ').filter(Boolean);
   if(!parts.length) return { patente:null, modelo:null, zona:null };
 
-  // el dominio puede estar en cualquier posición del texto, no solo la primera
-  const RE_MERCOSUR = /^[A-Z]{2}\d{3}[A-Z]{2}$/;
-  const RE_VIEJA    = /^[A-Z]{3}\d{3}$/;
+  const RE_MERCOSUR = /^[A-Z]{2}\d{3}[A-Z]{2}$/;   // patente 2016+, ej AC858HC
+  const RE_VIEJA    = /^[A-Z]{3}\d{3}$/;            // patente pre-2016, ej PKS223
+
+  // El archivo a veces trae la patente vieja partida por un espacio
+  // ("PKS 223" en vez de "PKS223"), o la 2016+ partida en sus 3 bloques
+  // ("AC 858 HC"). Se unen ANTES de buscar cuál token es la patente, para
+  // nunca quedarnos con el dominio incompleto (ej. solo "PKS").
+  parts = juntarPatentePartida(parts);
+
   let patenteIdx = parts.findIndex(p => RE_MERCOSUR.test(p) || RE_VIEJA.test(p));
   if(patenteIdx === -1) patenteIdx = 0; // fallback: primer token, como antes
 
@@ -677,6 +714,10 @@ async function parseExcel(file){
     const { patente, modelo, zona } = parseDispositivo(dispositivoRaw);
     if(!patente){
       errores.push({ fila: headerIdx+2+i, motivo:'No se pudo identificar el dispositivo/dominio', raw: dispositivoRaw });
+      return;
+    }
+    if(!/^[A-Z]{2}\d{3}[A-Z]{2}$/.test(patente) && !/^[A-Z]{3}\d{3}$/.test(patente)){
+      errores.push({ fila: headerIdx+2+i, motivo:`Dominio "${patente}" no coincide con ningún formato de patente válido (vieja: LLLNNN ej. PKS223, o 2016+: LLNNNLL ej. AC858HC)`, raw: dispositivoRaw });
       return;
     }
     const fecha_inicio = mapa.fecha_inicio!==undefined ? parseFechaInicio(r[mapa.fecha_inicio]) : null;
