@@ -459,7 +459,7 @@ const HEADER_ALIASES = {
   litros_ypf:       ['litros ypf','litros','combustible litros','combustible'],
 };
 // zonas conocidas de fábrica (se amplía sola al detectar nuevas al cargar vehículos)
-const ZONAS_DEFAULT = ['REDES','SALTA','MENDOZA','SAN LUIS','SAN JUAN'];
+const ZONAS_DEFAULT = ['REDES','SALTA','MENDOZA','SAN LUIS','SAN JUAN','CORDOBA','ENTRE RIOS','SGO DEL ESTERO','NEA NORTE','NOA CENTRO'];
 
 function normalizarTexto(s){
   return String(s||'')
@@ -550,14 +550,11 @@ function parseDispositivo(raw){
 
   const zonas = getZonasConocidas();
   let zona = null, modelo = resto.join(' ');
-  // probar match de zona de 2 palabras primero, después de 1 palabra
-  if(resto.length >= 2){
-    const ult2 = resto.slice(-2).join(' ').toUpperCase();
-    if(zonas.includes(ult2)){ zona = ult2; modelo = resto.slice(0,-2).join(' '); }
-  }
-  if(!zona && resto.length >= 1){
-    const ult1 = resto[resto.length-1].toUpperCase();
-    if(zonas.includes(ult1)){ zona = ult1; modelo = resto.slice(0,-1).join(' '); }
+  // probar match de zona de 3, 2 y 1 palabra (de más larga a más corta)
+  for(const n of [3,2,1]){
+    if(zona || resto.length < n) continue;
+    const ult = resto.slice(-n).join(' ').toUpperCase();
+    if(zonas.includes(ult)){ zona = ult; modelo = resto.slice(0,-n).join(' '); }
   }
   return { patente, modelo: modelo || null, zona };
 }
@@ -1137,6 +1134,7 @@ async function renderVehiculos(content){
         <div class="panel-head-left"><span class="ic">${icon('truck')}</span><h2>Todos los vehículos</h2></div>
         <div class="panel-head-actions">
           <div class="search-box">${icon('search')}<input id="v-search" placeholder="Buscar dominio, modelo o zona…"></div>
+          <button class="btn btn-secondary" id="btn-corregir-nombres" title="Vuelve a separar zona/modelo en registros viejos usando la lista de zonas actual">${icon('refresh')} Corregir nombres</button>
         </div>
       </div>
       <div class="panel-body table-wrap">
@@ -1162,6 +1160,52 @@ async function renderVehiculos(content){
     document.getElementById('v-tbody').innerHTML = filtered.map(v=>filaVehiculo(v)).join('');
     bindRows();
   };
+  document.getElementById('btn-corregir-nombres').onclick = () => corregirNombresExistentes();
+}
+
+// Re-separa zona/modelo en registros ya guardados, usando la lista de zonas
+// conocida ACTUAL (útil cuando se importó antes de que alguna zona nueva
+// estuviera reconocida, y quedó pegada dentro del modelo). No toca el
+// dominio ni crea/borra vehículos — solo redistribuye texto entre
+// label/region (vehiculos) y modelo_periodo/zona_periodo (gps_reportes).
+function reseparzarZona(texto){
+  if(!texto) return null;
+  const partes = String(texto).trim().split(/\s+/);
+  const zonas = getZonasConocidas();
+  for(const n of [3,2,1]){
+    if(partes.length < n) continue;
+    const ult = partes.slice(-n).join(' ').toUpperCase();
+    if(zonas.includes(ult)) return { modelo: partes.slice(0,-n).join(' ') || null, zona: ult };
+  }
+  return null;
+}
+async function corregirNombresExistentes(){
+  const proceed = await confirmModal(
+    'Corregir nombres existentes',
+    'Va a revisar todos los vehículos y reportes ya guardados, y separar la zona del modelo en los que quedaron pegados (usando las zonas conocidas hasta ahora: ' + getZonasConocidas().join(', ') + '). No borra ni crea vehículos, solo reordena texto.',
+    'Corregir'
+  );
+  if(!proceed) return;
+
+  let corregidosVehiculos = 0, corregidosReportes = 0;
+  const vehiculos = await sbSelect('vehiculos','*');
+  for(const v of vehiculos){
+    const r = reseparzarZona(v.label);
+    if(r && (r.zona !== v.region || r.modelo !== v.label)){
+      await state.sb.from('vehiculos').update({ label: r.modelo, region: r.zona }).eq('dominio', v.dominio);
+      corregidosVehiculos++;
+    }
+  }
+  const reportes = await sbSelect('gps_reportes','id, modelo_periodo, zona_periodo');
+  for(const rep of reportes){
+    const r = reseparzarZona(rep.modelo_periodo);
+    if(r && (r.zona !== rep.zona_periodo || r.modelo !== rep.modelo_periodo)){
+      await state.sb.from('gps_reportes').update({ modelo_periodo: r.modelo, zona_periodo: r.zona }).eq('id', rep.id);
+      corregidosReportes++;
+    }
+  }
+  toast(`Corregidos: ${corregidosVehiculos} vehículos, ${corregidosReportes} reportes.`, 'success');
+  renderView();
 }
 function filaVehiculo(v){
   return `<tr class="row-click" data-id="${esc(v.dominio)}">
