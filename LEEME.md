@@ -28,6 +28,18 @@ Este módulo se entrega como **app independiente** (no depende de ningún framew
 4. Confirmá la importación.
 5. Volvé a subir el mismo archivo: el sistema va a avisar que ya fue procesado (por hash). Si continuás igual, todo debería quedar como "Sin cambios" — sin duplicar nada.
 
+## Novedades (importación tolerante a formato + historial de zona)
+
+Se generalizó el importador a pedido tuyo:
+
+- **Ya no depende del layout exacto del archivo**: detecta los encabezados (Dispositivo, Fecha de inicio, Horas motor, Horas en ralentí, Distancia, Velocidad máxima, Litros YPF) busque en la fila que estén, en cualquier orden, en cualquier hoja del libro. Si no encuentra al menos "Dispositivo" + 1 columna más, avisa en vez de importar cualquier cosa.
+- **Tolera que los datos vengan ya numéricos** (Excel exporta a veces "Distancia" como número plano en vez de texto "2501 Km", u "Horas motor" como duración cruda de Excel) o como texto con unidad — ambos casos se detectan y normalizan solos.
+- **Soporta archivos que traen varios períodos consolidados a la vez** (por ejemplo un histórico de 16 meses en un solo Excel): si el archivo no trae un período único declarado, cada fila toma su propio período a partir de "Fecha de inicio". La previsualización muestra una columna "Período" cuando el archivo trae más de uno.
+- **La condición única sigue siendo dispositivo + período**, tal cual pediste — el detector de duplicados dentro del propio archivo y la comparación contra Supabase ahora trabajan con esa combinación, no solo con el dispositivo.
+- **Zona como dato histórico**: se agregaron `zona_periodo` y `modelo_periodo` a `gps_reportes` (ver más abajo). Si un vehículo cambió de zona con el tiempo (ej. pasó de NEA NORTE a REDES), cada reporte mensual conserva la zona que tenía *en ese momento*; `vehiculos.region` siempre se actualiza sola al valor del período más reciente conocido, sin pisar con datos de cargas viejas ni con vacíos.
+
+**Importante**: si ya corriste `schema.sql` antes, volvé a correrlo — ahora incluye los `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` para sumar `zona_periodo` y `modelo_periodo` a la tabla `gps_reportes` que ya creaste, sin borrar nada.
+
 ## Decisiones de diseño a validar con vos
 
 - **Tabla `vehiculos` reutilizada tal cual existe**: `dominio` (patente, primary key), `region` y `label`. El módulo GPS usa `region` como zona y **asume que `label` es el modelo/nombre visible del vehículo** — si algún otro módulo tuyo ya usa `label` con otro significado, avisame para no pisarlo al crear vehículos nuevos desde la importación.

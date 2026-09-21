@@ -233,7 +233,7 @@ function clearConfig(){
   try{ localStorage.removeItem(CFG_KEY); }catch(e){}
 }
 function getZonasConocidas(){
-  try{ return JSON.parse(localStorage.getItem(ZONAS_CONOCIDAS_KEY) || '["REDES","SALTA"]'); }catch(e){ return ['REDES','SALTA']; }
+  try{ return JSON.parse(localStorage.getItem(ZONAS_CONOCIDAS_KEY) || JSON.stringify(ZONAS_DEFAULT)); }catch(e){ return ZONAS_DEFAULT.slice(); }
 }
 function addZonaConocida(z){
   const list = getZonasConocidas();
@@ -276,36 +276,118 @@ function esc(s){
 }
 
 /* =========================================================================
-   PARSEO DE EXCEL
+   PARSEO DE EXCEL — tolerante a formato: matchea por ENCABEZADO (no por
+   posición de columna ni nombre de hoja), y detecta el tipo real de cada
+   celda (texto con unidad, número crudo, o duración de Excel).
    ========================================================================= */
-function parseDispositivo(raw){
-  const txt = (raw||'').trim().replace(/\s+/g,' ');
-  const parts = txt.split(' ');
-  const patente = (parts.shift()||'').toUpperCase();
-  const zonas = getZonasConocidas();
-  let zona = null, modelo = parts.join(' ');
-  if(parts.length){
-    const last = parts[parts.length-1].toUpperCase();
-    if(zonas.includes(last)){
-      zona = last;
-      modelo = parts.slice(0,-1).join(' ');
+
+// alias de encabezados aceptados por campo (todo en minúsculas, sin tildes)
+const HEADER_ALIASES = {
+  dispositivo:      ['dispositivo','vehiculo','patente','dominio','movil','unidad'],
+  fecha_inicio:     ['fecha de inicio','fecha inicio','fecha'],
+  horas_motor:      ['horas motor','horas de motor','hs motor','horas encendido'],
+  horas_ralenti:    ['horas en ralenti','horas ralenti','horas de ralenti','hs ralenti','ralenti'],
+  distancia_km:     ['distancia','distancia km','distancia recorrida','kilometros','km recorridos'],
+  velocidad_maxima: ['velocidad maxima','velocidad max','vel maxima','vel. maxima','velocidad'],
+  litros_ypf:       ['litros ypf','litros','combustible litros','combustible'],
+};
+// zonas conocidas de fábrica (se amplía sola al detectar nuevas al cargar vehículos)
+const ZONAS_DEFAULT = ['REDES','SALTA','MENDOZA','SAN LUIS','SAN JUAN'];
+
+function normalizarTexto(s){
+  return String(s||'')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // saca tildes
+    .trim().replace(/\s+/g,' ');
+}
+
+function matchHeaderField(headerText){
+  const h = normalizarTexto(headerText);
+  if(!h) return null;
+  for(const [field, aliases] of Object.entries(HEADER_ALIASES)){
+    if(aliases.some(a => h === a || h.includes(a))) return field;
+  }
+  return null;
+}
+
+// localiza la fila de encabezados y arma el mapa {campo: índice de columna}
+// escaneando las primeras filas de la hoja — no asume una posición fija.
+function detectarEncabezados(rows){
+  let mejor = { idx:-1, mapa:{}, matches:0 };
+  const limite = Math.min(rows.length, 25);
+  for(let i=0;i<limite;i++){
+    const fila = rows[i] || [];
+    const mapa = {};
+    fila.forEach((celda, col) => {
+      const campo = matchHeaderField(celda);
+      if(campo && mapa[campo]===undefined) mapa[campo] = col;
+    });
+    const matches = Object.keys(mapa).length;
+    if(matches > mejor.matches && mapa.dispositivo !== undefined){
+      mejor = { idx:i, mapa, matches };
     }
+  }
+  return mejor.matches >= 2 ? mejor : null; // dispositivo + al menos 1 campo más
+}
+
+function parseDispositivo(raw){
+  const txt = normalizarTextoConservandoMayus(raw);
+  const parts = txt.split(' ').filter(Boolean);
+  if(!parts.length) return { patente:null, modelo:null, zona:null };
+
+  // el dominio puede estar en cualquier posición del texto, no solo la primera
+  const RE_MERCOSUR = /^[A-Z]{2}\d{3}[A-Z]{2}$/;
+  const RE_VIEJA    = /^[A-Z]{3}\d{3}$/;
+  let patenteIdx = parts.findIndex(p => RE_MERCOSUR.test(p) || RE_VIEJA.test(p));
+  if(patenteIdx === -1) patenteIdx = 0; // fallback: primer token, como antes
+
+  const patente = parts[patenteIdx].toUpperCase();
+  const resto = parts.filter((_,i)=>i!==patenteIdx);
+
+  const zonas = getZonasConocidas();
+  let zona = null, modelo = resto.join(' ');
+  // probar match de zona de 2 palabras primero, después de 1 palabra
+  if(resto.length >= 2){
+    const ult2 = resto.slice(-2).join(' ').toUpperCase();
+    if(zonas.includes(ult2)){ zona = ult2; modelo = resto.slice(0,-2).join(' '); }
+  }
+  if(!zona && resto.length >= 1){
+    const ult1 = resto[resto.length-1].toUpperCase();
+    if(zonas.includes(ult1)){ zona = ult1; modelo = resto.slice(0,-1).join(' '); }
   }
   return { patente, modelo: modelo || null, zona };
 }
-
-function parseDistancia(raw){
-  if(raw===null || raw===undefined || raw==='') return null;
-  const s = String(raw).trim().replace(',', '.');
-  const m = s.match(/([\d.]+)\s*(km|m)\b/i);
-  if(!m) return null;
-  const val = parseFloat(m[1]);
-  if(isNaN(val)) return null;
-  return m[2].toLowerCase()==='km' ? round(val,3) : round(val/1000,3);
+function normalizarTextoConservandoMayus(raw){
+  return String(raw||'').trim().replace(/\s+/g,' ');
 }
 
+// Distancia: puede venir como número crudo (ya en km) o como texto "2501 Km" / "364 m"
+function parseDistancia(raw){
+  if(raw===null || raw===undefined || raw==='') return null;
+  if(typeof raw === 'number') return round(raw, 3);
+  const s = String(raw).trim().replace(',', '.');
+  const m = s.match(/([\d.]+)\s*(km|m)\b/i);
+  if(m){
+    const val = parseFloat(m[1]);
+    if(isNaN(val)) return null;
+    return m[2].toLowerCase()==='km' ? round(val,3) : round(val/1000,3);
+  }
+  const asNum = parseFloat(s);
+  return isNaN(asNum) ? null : round(asNum,3);
+}
+
+// Horas (motor / ralentí): puede venir como texto "91 h 16 min", como número
+// puro de horas, o como duración cruda de Excel (fracción de día, ej 6.035).
 function parseHoras(raw){
   if(raw===null || raw===undefined || raw==='') return null;
+  if(typeof raw === 'number'){
+    // Heurística: una duración de Excel para "horas en un mes" no debería
+    // superar ~31*24=744hs. Si el número ya viene expresado en horas
+    // (>50) lo tomamos tal cual; si es una fracción de día (<50) lo
+    // multiplicamos por 24. Esto cubre archivos que exportan ya en horas
+    // y archivos que exportan la celda de duración cruda de Excel.
+    return raw < 50 ? round(raw*24, 2) : round(raw, 2);
+  }
   const s = String(raw).trim();
   if(s==='') return null;
   const m = s.match(/(\d+)\s*h\s*(\d+)?\s*min?/i);
@@ -315,11 +397,12 @@ function parseHoras(raw){
     return round(h + min/60, 2);
   }
   const asNum = parseFloat(s.replace(',','.'));
-  return isNaN(asNum) ? null : asNum;
+  return isNaN(asNum) ? null : round(asNum,2);
 }
 
 function parseVelocidad(raw){
   if(raw===null || raw===undefined || raw==='') return null;
+  if(typeof raw === 'number') return round(raw,1);
   const m = String(raw).match(/([\d.,]+)/);
   if(!m) return null;
   return round(parseFloat(m[1].replace(',','.')), 1);
@@ -331,9 +414,15 @@ function parseLitros(raw){
   return isNaN(n) ? null : round(n,2);
 }
 
+const EXCEL_EPOCH_MS = Date.UTC(1899,11,30);
+function excelSerialToISO(serial){
+  const ms = EXCEL_EPOCH_MS + Math.round(serial) * 86400000;
+  return new Date(ms).toISOString().slice(0,10);
+}
 function parseFechaInicio(raw){
-  if(!raw) return null;
+  if(raw===null || raw===undefined || raw==='') return null;
   if(raw instanceof Date) return raw.toISOString().slice(0,10);
+  if(typeof raw === 'number') return excelSerialToISO(raw);
   const s = String(raw).trim();
   const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if(m){
@@ -342,14 +431,22 @@ function parseFechaInicio(raw){
   }
   return null;
 }
+function periodoDeFecha(fechaISO){
+  if(!fechaISO) return null;
+  const key = fechaISO.slice(0,7); // 'YYYY-MM'
+  return { periodo:key, label: periodoLabelFromKey(key) };
+}
 
 function round(n, dec){
   const f = Math.pow(10,dec);
   return Math.round(n*f)/f;
 }
 
-function detectarPeriodo(rows, fileName){
-  // 1. Metadata "Período: dd/mm/yyyy ... — dd/mm/yyyy ..."
+// Período GLOBAL del archivo (metadata o nombre de archivo). Si no se
+// encuentra, cada fila usa su propio período derivado de "Fecha de inicio"
+// (ver periodoDeFecha) — esto es lo que permite importar reportes
+// consolidados que abarcan varios meses en un solo Excel.
+function detectarPeriodoGlobal(rows, fileName){
   for(const r of rows){
     const c0 = String(r[0]||'').toLowerCase();
     if(c0.includes('período') || c0.includes('periodo')){
@@ -362,7 +459,6 @@ function detectarPeriodo(rows, fileName){
       }
     }
   }
-  // 2. Nombre de archivo: "... Mayo 2026 ..."
   const lower = (fileName||'').toLowerCase();
   for(let i=0;i<MESES.length;i++){
     if(lower.includes(MESES[i])){
@@ -384,48 +480,79 @@ async function hashFile(file){
 
 async function parseExcel(file){
   const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type:'array', cellDates:true });
-  const sheetName = wb.SheetNames.find(n=>/resumen/i.test(n)) || wb.SheetNames[0];
-  const ws = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:null });
+  const wb = XLSX.read(buf, { type:'array' }); // sin cellDates: dejamos que cada
+                                                // parser interprete el tipo crudo
+  // no asumimos el nombre de la hoja — probamos todas hasta encontrar encabezados válidos
+  let encontrado = null, sheetName = null, rows = null;
+  for(const name of wb.SheetNames){
+    const ws = wb.Sheets[name];
+    const r = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:null });
+    const enc = detectarEncabezados(r);
+    if(enc){ encontrado = enc; sheetName = name; rows = r; break; }
+  }
+  if(!encontrado){
+    return { periodo:null, periodoLabel:null, rows:[], errores:[], totalFilas:0, sheetName:null,
+      errorGeneral:'No se pudieron identificar las columnas esperadas (Dispositivo, Fecha de inicio, Horas motor, Horas en ralentí, Distancia, Velocidad máxima, Litros YPF) en ninguna hoja del archivo.' };
+  }
 
-  const { periodo, label } = detectarPeriodo(rows, file.name);
+  const { idx: headerIdx, mapa } = encontrado;
+  const globalPeriodo = detectarPeriodoGlobal(rows, file.name);
 
-  // localizar fila de encabezado ("Dispositivo")
-  let headerIdx = rows.findIndex(r => r[0] && String(r[0]).trim().toLowerCase()==='dispositivo');
-  if(headerIdx === -1) headerIdx = 4; // fallback al layout de referencia
-
-  const dataRows = rows.slice(headerIdx+1).filter(r => r && r[0] && String(r[0]).trim()!=='');
+  const dataRows = rows.slice(headerIdx+1).filter(r => r && mapa.dispositivo!==undefined && r[mapa.dispositivo] && String(r[mapa.dispositivo]).trim()!=='');
 
   const parsed = [];
   const errores = [];
   const vistosEnArchivo = new Set();
+  const periodosDetectados = new Set();
 
   dataRows.forEach((r, i) => {
-    const dispositivoRaw = r[0];
+    const dispositivoRaw = r[mapa.dispositivo];
     const { patente, modelo, zona } = parseDispositivo(dispositivoRaw);
     if(!patente){
-      errores.push({ fila: headerIdx+2+i, motivo:'No se pudo identificar la patente', raw: dispositivoRaw });
+      errores.push({ fila: headerIdx+2+i, motivo:'No se pudo identificar el dispositivo/dominio', raw: dispositivoRaw });
       return;
     }
-    const row = {
-      patente, modelo, zona,
-      fecha_inicio: parseFechaInicio(r[1]),
-      horas_motor: parseHoras(r[2]),
-      horas_ralenti: parseHoras(r[3]),
-      distancia_km: parseDistancia(r[4]),
-      velocidad_maxima: parseVelocidad(r[5]),
-      litros_ypf: parseLitros(r[6]),
-      _dup_en_archivo: false,
-    };
-    if(vistosEnArchivo.has(patente)){
-      row._dup_en_archivo = true;
+    const fecha_inicio = mapa.fecha_inicio!==undefined ? parseFechaInicio(r[mapa.fecha_inicio]) : null;
+
+    let periodo, periodoLabel;
+    if(globalPeriodo.periodo){
+      periodo = globalPeriodo.periodo; periodoLabel = globalPeriodo.label;
+    }else{
+      const pf = periodoDeFecha(fecha_inicio);
+      if(!pf){
+        errores.push({ fila: headerIdx+2+i, motivo:'No se pudo determinar el período (sin metadata de período y sin fecha de inicio válida)', raw: dispositivoRaw });
+        return;
+      }
+      periodo = pf.periodo; periodoLabel = pf.label;
     }
-    vistosEnArchivo.add(patente);
+    periodosDetectados.add(periodo);
+
+    const claveDup = patente+'|'+periodo;
+    const row = {
+      patente, modelo, zona, periodo, periodoLabel,
+      fecha_inicio,
+      horas_motor: mapa.horas_motor!==undefined ? parseHoras(r[mapa.horas_motor]) : null,
+      horas_ralenti: mapa.horas_ralenti!==undefined ? parseHoras(r[mapa.horas_ralenti]) : null,
+      distancia_km: mapa.distancia_km!==undefined ? parseDistancia(r[mapa.distancia_km]) : null,
+      velocidad_maxima: mapa.velocidad_maxima!==undefined ? parseVelocidad(r[mapa.velocidad_maxima]) : null,
+      litros_ypf: mapa.litros_ypf!==undefined ? parseLitros(r[mapa.litros_ypf]) : null,
+      _dup_en_archivo: vistosEnArchivo.has(claveDup),
+    };
+    vistosEnArchivo.add(claveDup);
     parsed.push(row);
   });
 
-  return { periodo, periodoLabel: label, rows: parsed, errores, totalFilas: dataRows.length, sheetName };
+  const periodosOrdenados = [...periodosDetectados].sort();
+  const periodoResumen = periodosOrdenados.length<=1
+    ? (periodosOrdenados[0] ? periodoLabelFromKey(periodosOrdenados[0]) : null)
+    : `${periodosOrdenados.length} períodos (${periodoLabelFromKey(periodosOrdenados[0])} – ${periodoLabelFromKey(periodosOrdenados[periodosOrdenados.length-1])})`;
+
+  return {
+    periodo: periodosOrdenados.length===1 ? periodosOrdenados[0] : null,
+    periodoLabel: periodoResumen,
+    periodos: periodosOrdenados,
+    rows: parsed, errores, totalFilas: dataRows.length, sheetName,
+  };
 }
 
 /* =========================================================================
@@ -445,12 +572,14 @@ async function sbSelect(table, cols, filters){
 
 async function fetchFilterOptions(){
   const [reportes, vehiculos] = await Promise.all([
-    sbSelect('gps_reportes', 'periodo, periodo_label'),
+    sbSelect('gps_reportes', 'periodo, periodo_label, zona_periodo, modelo_periodo'),
     sbSelect('vehiculos', 'dominio, region, label'),
   ]);
   const periodos = uniqBy(reportes, 'periodo').sort((a,b)=>b.periodo.localeCompare(a.periodo));
-  const modelos = [...new Set(vehiculos.map(v=>v.label).filter(Boolean))].sort();
-  const zonas = [...new Set(vehiculos.map(v=>v.region).filter(Boolean))].sort();
+  // unión de lo que hay en vehiculos (zona/modelo actuales) + lo que aparece
+  // históricamente en los reportes (por si un vehículo cambió de zona)
+  const modelos = [...new Set([...vehiculos.map(v=>v.label), ...reportes.map(r=>r.modelo_periodo)].filter(Boolean))].sort();
+  const zonas = [...new Set([...vehiculos.map(v=>v.region), ...reportes.map(r=>r.zona_periodo)].filter(Boolean))].sort();
   return { periodos, vehiculos, modelos, zonas };
 }
 function uniqBy(arr, key){
@@ -466,8 +595,10 @@ async function fetchReportesFiltrados(filters){
   if(error) throw error;
   let rows = data || [];
   if(filters.vehiculo) rows = rows.filter(r => r.vehiculo_dominio === filters.vehiculo);
-  if(filters.modelo) rows = rows.filter(r => r.vehiculos && r.vehiculos.label === filters.modelo);
-  if(filters.zona) rows = rows.filter(r => r.vehiculos && r.vehiculos.region === filters.zona);
+  // se usa el dato histórico del reporte (zona/modelo "de ese momento") y,
+  // si el reporte es viejo y no lo tiene guardado, se cae al dato actual del vehículo
+  if(filters.modelo) rows = rows.filter(r => (r.modelo_periodo || (r.vehiculos&&r.vehiculos.label)) === filters.modelo);
+  if(filters.zona) rows = rows.filter(r => (r.zona_periodo || (r.vehiculos&&r.vehiculos.region)) === filters.zona);
   return rows;
 }
 
@@ -656,8 +787,8 @@ function tablaReportes(rows){
     <tbody>
       ${sorted.map(r=>`<tr>
         <td>${esc(r.vehiculos?.dominio||'—')}</td>
-        <td>${esc(r.vehiculos?.label||'—')}</td>
-        <td>${esc(r.vehiculos?.region||'—')}</td>
+        <td>${esc(r.modelo_periodo || r.vehiculos?.label || '—')}</td>
+        <td>${esc(r.zona_periodo || r.vehiculos?.region || '—')}</td>
         <td class="num">${fmtNum(r.distancia_km,0)}</td>
         <td class="num">${fmtNum(r.litros_ypf,1)}</td>
         <td class="num">${(r.litros_ypf && r.distancia_km)? fmtNum(r.distancia_km/r.litros_ypf,2) : '—'}</td>
@@ -743,10 +874,11 @@ async function renderVehiculoDetalle(content, vehiculoDominio){
       <div class="panel-head"><h2>Reportes por período</h2></div>
       <div class="panel-body table-wrap">
         <table>
-          <thead><tr><th>Período</th><th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th><th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">Vel. máx</th></tr></thead>
+          <thead><tr><th>Período</th><th>Zona</th><th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th><th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">Vel. máx</th></tr></thead>
           <tbody>
             ${reportes.map(r=>`<tr>
               <td>${esc(r.periodo_label)}</td>
+              <td>${esc(r.zona_periodo || vehiculo.region || '—')}</td>
               <td class="num">${fmtNum(r.distancia_km,0)}</td>
               <td class="num">${fmtNum(r.litros_ypf,1)}</td>
               <td class="num">${(r.litros_ypf && r.distancia_km)? fmtNum(r.distancia_km/r.litros_ypf,2) : '—'}</td>
@@ -906,8 +1038,12 @@ async function handleFile(file){
     const { data: yaExiste } = await state.sb.from('gps_importaciones').select('id, nombre_archivo, fecha_carga').eq('hash_archivo', hash).limit(1);
     const parsed = await parseExcel(file);
 
-    if(!parsed.periodo){
-      resultEl.innerHTML = `<div class="panel"><div class="panel-body"><strong style="color:var(--red)">No se pudo identificar el período del reporte.</strong><p class="muted">Verificá que el archivo tenga la fila "Período:" o que el nombre del archivo incluya el mes y el año (ej: "GPS resumen Mayo 2026.xlsx").</p></div></div>`;
+    if(parsed.errorGeneral){
+      resultEl.innerHTML = `<div class="panel"><div class="panel-body"><strong style="color:var(--red)">${esc(parsed.errorGeneral)}</strong></div></div>`;
+      return;
+    }
+    if(!parsed.rows.length && !parsed.errores.length){
+      resultEl.innerHTML = `<div class="panel"><div class="panel-body"><strong style="color:var(--red)">No se encontraron filas de datos debajo del encabezado.</strong></div></div>`;
       return;
     }
 
@@ -934,37 +1070,37 @@ async function buildPreview(file, hash, parsed, resultEl){
   const vehiculosExistentes = await sbSelect('vehiculos', '*');
   const porPatente = {}; vehiculosExistentes.forEach(v=>porPatente[v.dominio]=v);
 
-  // reportes existentes para este período
+  // reportes existentes — para TODOS los períodos que aparecen en este archivo
+  // (un mismo Excel puede traer varios meses consolidados)
   let reportesExistentes = [];
-  if(vehiculosExistentes.length){
-    const { data, error } = await state.sb.from('gps_reportes').select('*').eq('periodo', parsed.periodo);
+  if(parsed.periodos.length){
+    const { data, error } = await state.sb.from('gps_reportes').select('*').in('periodo', parsed.periodos);
     if(error) throw error;
     reportesExistentes = data;
   }
-  const reportePorVehiculoId = {}; reportesExistentes.forEach(r=>reportePorVehiculoId[r.vehiculo_dominio]=r);
+  const reportePorClave = {}; reportesExistentes.forEach(r=>reportePorClave[r.vehiculo_dominio+'|'+r.periodo]=r);
 
-  const camposComparar = ['fecha_inicio','horas_motor','horas_ralenti','distancia_km','velocidad_maxima','litros_ypf'];
+  const camposComparar = ['fecha_inicio','horas_motor','horas_ralenti','distancia_km','velocidad_maxima','litros_ypf','zona_periodo','modelo_periodo'];
   const distancias = parsed.rows.map(r=>r.distancia_km).filter(v=>v!==null);
   const mediana = medianOf(distancias);
 
   const preview = parsed.rows.map(row => {
     if(row._dup_en_archivo){
-      return { ...row, estado:'error', motivo:'Patente duplicada dentro del mismo archivo' };
+      return { ...row, estado:'error', motivo:'Mismo dispositivo + mismo período repetido dentro del archivo' };
     }
     const esAtipico = row.distancia_km!==null && mediana>0 && row.distancia_km > mediana*5;
     const vehiculoExistente = porPatente[row.patente];
-    if(!vehiculoExistente){
+    const claveReporte = row.patente+'|'+row.periodo;
+    const reporteExistente = reportePorClave[claveReporte];
+    if(!vehiculoExistente || !reporteExistente){
       return { ...row, estado:'nuevo', esAtipico, diffs:null };
     }
-    const reporteExistente = reportePorVehiculoId[vehiculoExistente.dominio];
-    if(!reporteExistente){
-      return { ...row, estado:'nuevo', esAtipico, diffs:null };
-    }
+    const nuevoValores = { ...row, zona_periodo: row.zona, modelo_periodo: row.modelo };
     const diffs = {};
     let cambio = false;
     camposComparar.forEach(c=>{
       const antes = reporteExistente[c];
-      const despues = row[c];
+      const despues = nuevoValores[c];
       const a = antes===undefined?null:antes;
       const d = despues===undefined?null:despues;
       if(String(a) !== String(d)){ cambio = true; diffs[c] = { antes:a, despues:d }; }
@@ -974,7 +1110,7 @@ async function buildPreview(file, hash, parsed, resultEl){
       : { ...row, estado:'sin-cambios', esAtipico, diffs:null, reporteId: reporteExistente.id, vehiculoId: vehiculoExistente.dominio };
   });
 
-  parsed.errores.forEach(e => preview.push({ patente:'—', estado:'error', motivo: e.motivo + (e.raw? ` ("${e.raw}")`:'') }));
+  parsed.errores.forEach(e => preview.push({ patente:'—', periodoLabel:'—', estado:'error', motivo: e.motivo + (e.raw? ` ("${e.raw}")`:'') }));
 
   state.importState = { file, hash, parsed, preview };
   renderPreview(resultEl);
@@ -991,12 +1127,13 @@ function renderPreview(resultEl){
   const { parsed, preview } = state.importState;
   const counts = { nuevo:0, actualizar:0, 'sin-cambios':0, error:0 };
   preview.forEach(p=>counts[p.estado]++);
+  const multiPeriodo = parsed.periodos.length > 1;
 
   resultEl.innerHTML = `
     <div class="panel">
       <div class="panel-head"><h2>Reporte detectado</h2></div>
       <div class="panel-body">
-        <p><strong>Archivo:</strong> ${esc(state.importState.file.name)} &nbsp; · &nbsp; <strong>Período:</strong> ${esc(parsed.periodoLabel)} &nbsp; · &nbsp; <strong>Registros:</strong> ${parsed.totalFilas}</p>
+        <p><strong>Archivo:</strong> ${esc(state.importState.file.name)} &nbsp; · &nbsp; <strong>Período${multiPeriodo?'s':''}:</strong> ${esc(parsed.periodoLabel)} &nbsp; · &nbsp; <strong>Registros:</strong> ${parsed.totalFilas}</p>
         <div class="summary-strip">
           <div class="summary-pill" style="border-color:#cdeedb"><div class="n" style="color:var(--green)">${counts.nuevo}</div><div class="l">🟢 Nuevos</div></div>
           <div class="summary-pill" style="border-color:#f6e2b8"><div class="n" style="color:var(--amber-dark)">${counts.actualizar}</div><div class="l">🟡 Actualizar</div></div>
@@ -1005,10 +1142,11 @@ function renderPreview(resultEl){
         </div>
         <div class="table-wrap" style="max-height:420px;overflow-y:auto">
           <table>
-            <thead><tr><th>Vehículo</th><th>Estado</th><th>Detalle</th></tr></thead>
+            <thead><tr><th>Vehículo</th>${multiPeriodo?'<th>Período</th>':''}<th>Estado</th><th>Detalle</th></tr></thead>
             <tbody>
               ${preview.map(p=>`<tr>
                 <td>${esc(p.patente)}${p.esAtipico?' <span class="badge atipico">⚠ atípico</span>':''}</td>
+                ${multiPeriodo?`<td>${esc(p.periodoLabel||'—')}</td>`:''}
                 <td>${badgeEstado(p.estado)}</td>
                 <td>${detalleFila(p)}</td>
               </tr>`).join('')}
@@ -1030,13 +1168,14 @@ function badgeEstado(estado){
   const [cls,label] = map[estado] || ['','—'];
   return `<span class="badge ${cls}">${label}</span>`;
 }
+const NOMBRE_CAMPO = { zona_periodo:'zona', modelo_periodo:'modelo', fecha_inicio:'fecha inicio', horas_motor:'hs motor', horas_ralenti:'hs ralentí', distancia_km:'km', velocidad_maxima:'vel. máx', litros_ypf:'litros' };
 function detalleFila(p){
   if(p.estado==='error') return `<span class="muted">${esc(p.motivo||'')}</span>`;
-  if(p.estado==='nuevo') return `<span class="diff-new">Km: ${fmtNum(p.distancia_km,0)} · Litros: ${fmtNum(p.litros_ypf,1)}</span>`;
+  if(p.estado==='nuevo') return `<span class="diff-new">Km: ${fmtNum(p.distancia_km,0)} · Litros: ${fmtNum(p.litros_ypf,1)}${p.zona?' · Zona: '+esc(p.zona):''}</span>`;
   if(p.estado==='sin-cambios') return `<span class="muted">—</span>`;
   if(p.estado==='actualizar' && p.diffs){
     return Object.entries(p.diffs).map(([campo,v])=>
-      `<span class="diff-old">${esc(String(v.antes ?? '—'))}</span> → <span class="diff-new">${esc(String(v.despues ?? '—'))}</span> <span class="muted">(${campo})</span>`
+      `<span class="diff-old">${esc(String(v.antes ?? '—'))}</span> → <span class="diff-new">${esc(String(v.despues ?? '—'))}</span> <span class="muted">(${esc(NOMBRE_CAMPO[campo]||campo)})</span>`
     ).join('<br>');
   }
   return '';
@@ -1049,6 +1188,19 @@ async function ejecutarImportacion(resultEl){
 
   try{
     let nuevos=0, actualizados=0, sinCambios=0, errores=0;
+    const vehiculosTocados = new Set();
+
+    // 0. crear la importación primero, para poder linkear cada reporte a medida que se procesa
+    const { data: importacion, error: errImpIni } = await state.sb.from('gps_importaciones').insert({
+      nombre_archivo: file.name,
+      periodo: parsed.periodos.length===1 ? parsed.periodos[0] : 'multiple',
+      periodo_label: parsed.periodoLabel,
+      hash_archivo: hash,
+      total_registros: parsed.totalFilas,
+      registros_nuevos: 0, registros_actualizados: 0, registros_sin_cambios: 0, registros_error: 0,
+      estado: 'procesando',
+    }).select('id').single();
+    if(errImpIni) throw errImpIni;
 
     for(const row of preview){
       if(row.estado==='error'){ errores++; continue; }
@@ -1058,33 +1210,34 @@ async function ejecutarImportacion(resultEl){
       const vehiculoDominio = row.vehiculoId || row.patente;
       if(!row.vehiculoId){
         const { data: existing } = await state.sb.from('vehiculos').select('dominio').eq('dominio', row.patente).maybeSingle();
-        if(existing){
-          if(row.modelo || row.zona){
-            await state.sb.from('vehiculos').update({ label: row.modelo, region: row.zona }).eq('dominio', row.patente);
-          }
-        }else{
+        if(!existing){
           const { error: errCreate } = await state.sb.from('vehiculos')
             .insert({ dominio: row.patente, label: row.modelo, region: row.zona });
           if(errCreate) throw errCreate;
           if(row.zona) addZonaConocida(row.zona);
         }
       }
+      vehiculosTocados.add(vehiculoDominio);
+      if(row.zona) addZonaConocida(row.zona);
 
       const payload = {
         vehiculo_dominio: vehiculoDominio,
-        periodo: parsed.periodo,
-        periodo_label: parsed.periodoLabel,
+        periodo: row.periodo,
+        periodo_label: row.periodoLabel,
         fecha_inicio: row.fecha_inicio,
         horas_motor: row.horas_motor,
         horas_ralenti: row.horas_ralenti,
         distancia_km: row.distancia_km,
         velocidad_maxima: row.velocidad_maxima,
         litros_ypf: row.litros_ypf,
+        zona_periodo: row.zona,
+        modelo_periodo: row.modelo,
         es_atipico: !!row.esAtipico,
+        importacion_id: importacion.id,
       };
 
       if(row.estado==='nuevo'){
-        const { error: errIns } = await state.sb.from('gps_reportes').insert({ ...payload, importacion_id: null });
+        const { error: errIns } = await state.sb.from('gps_reportes').insert(payload);
         if(errIns) throw errIns;
         nuevos++;
       }else if(row.estado==='actualizar'){
@@ -1094,23 +1247,27 @@ async function ejecutarImportacion(resultEl){
       }
     }
 
-    const { data: importacion, error: errImp } = await state.sb.from('gps_importaciones').insert({
-      nombre_archivo: file.name,
-      periodo: parsed.periodo,
-      periodo_label: parsed.periodoLabel,
-      hash_archivo: hash,
-      total_registros: parsed.totalFilas,
-      registros_nuevos: nuevos,
-      registros_actualizados: actualizados,
-      registros_sin_cambios: sinCambios,
-      registros_error: errores,
-      estado: 'completado',
-    }).select('id').single();
-    if(errImp) throw errImp;
+    // Reconciliar vehiculos.region/label con el período MÁS RECIENTE que tenga
+    // ese dato, para cada vehículo tocado — así si un vehículo cambió de zona,
+    // "vehiculos" siempre queda mostrando la zona vigente, sin pisarla con
+    // cargas de meses viejos ni con datos vacíos.
+    for(const dominio of vehiculosTocados){
+      const { data: ultZona } = await state.sb.from('gps_reportes')
+        .select('zona_periodo').eq('vehiculo_dominio', dominio).not('zona_periodo','is',null)
+        .order('periodo', { ascending:false }).limit(1);
+      const { data: ultModelo } = await state.sb.from('gps_reportes')
+        .select('modelo_periodo').eq('vehiculo_dominio', dominio).not('modelo_periodo','is',null)
+        .order('periodo', { ascending:false }).limit(1);
+      const patch = {};
+      if(ultZona && ultZona.length) patch.region = ultZona[0].zona_periodo;
+      if(ultModelo && ultModelo.length) patch.label = ultModelo[0].modelo_periodo;
+      if(Object.keys(patch).length) await state.sb.from('vehiculos').update(patch).eq('dominio', dominio);
+    }
 
-    // vincular reportes nuevos a la importación
-    await state.sb.from('gps_reportes').update({ importacion_id: importacion.id })
-      .eq('periodo', parsed.periodo).is('importacion_id', null);
+    await state.sb.from('gps_importaciones').update({
+      registros_nuevos: nuevos, registros_actualizados: actualizados,
+      registros_sin_cambios: sinCambios, registros_error: errores, estado:'completado',
+    }).eq('id', importacion.id);
 
     toast(`Importación completada: ${nuevos} nuevos, ${actualizados} actualizados, ${sinCambios} sin cambios.`, 'success');
     state.importState = null;
