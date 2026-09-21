@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Módulo GPS — Flota</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --navy-950:#0f172a;
+    --navy-900:#152238;
+    --navy-800:#1c2e4a;
+    --slate-50:#f6f7f9;
+    --slate-100:#eceef2;
+    --slate-200:#dde1e8;
+    --slate-400:#8b93a3;
+    --slate-600:#535c6c;
+    --slate-800:#2a3242;
+    --amber:#e6a91b;
+    --amber-dark:#b8820e;
+    --green:#2f9e5b;
+    --red:#c0432f;
+    --gray-mid:#8b93a3;
+    --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+    --radius: 6px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:var(--font-ui);
+    background:var(--slate-50);
+    color:var(--slate-800);
+    font-size:14px;
+    line-height:1.45;
+  }
+  @font-face{font-family:"Inter";src:local("Inter");}
+  a{color:inherit;}
+  button{font-family:inherit;font-size:inherit;cursor:pointer;}
+  input,select{font-family:inherit;font-size:inherit;}
+
+  /* ---------- Layout shell ---------- */
+  #app{display:flex;min-height:100vh;}
+  .sidebar{
+    width:220px;flex:none;background:var(--navy-950);color:#cfd8e8;
+    display:flex;flex-direction:column;padding:20px 0;
+  }
+  .sidebar .brand{
+    padding:0 20px 20px 20px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;
+  }
+  .sidebar .brand .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--amber);margin-right:8px;}
+  .sidebar .brand .name{font-weight:700;font-size:15px;color:#fff;letter-spacing:.2px;}
+  .sidebar .brand .sub{font-size:11.5px;color:var(--slate-400);margin-top:2px;}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;padding:10px 20px;color:#aab4c8;
+    text-decoration:none;font-size:13.5px;font-weight:500;border-left:3px solid transparent;
+    background:none;border-top:none;border-bottom:none;border-right:none;width:100%;text-align:left;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.04);color:#fff;}
+  .nav-item.active{background:rgba(230,169,27,.1);color:#fff;border-left-color:var(--amber);}
+  .nav-item svg{width:16px;height:16px;flex:none;opacity:.9;}
+  .sidebar-foot{margin-top:auto;padding:14px 20px 0 20px;border-top:1px solid rgba(255,255,255,.08);}
+  .sidebar-foot button{
+    background:none;border:none;color:var(--slate-400);font-size:12px;padding:6px 0;
+  }
+  .sidebar-foot button:hover{color:#fff;}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .topbar{
+    padding:18px 28px;border-bottom:1px solid var(--slate-200);background:#fff;
+    display:flex;align-items:baseline;justify-content:space-between;
+  }
+  .topbar h1{font-size:19px;margin:0;font-weight:700;color:var(--navy-950);}
+  .topbar .meta{font-size:12.5px;color:var(--slate-600);}
+  .content{padding:24px 28px 60px 28px;flex:1;}
+
+  /* ---------- Filters ---------- */
+  .filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;}
+  .filters select{
+    padding:7px 10px;border:1px solid var(--slate-200);border-radius:var(--radius);
+    background:#fff;color:var(--slate-800);min-width:140px;
+  }
+
+  /* ---------- KPI cards ---------- */
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:26px;}
+  .kpi-card{
+    background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius);
+    padding:14px 16px;position:relative;
+  }
+  .kpi-card .label{font-size:11.5px;color:var(--slate-600);margin-bottom:6px;}
+  .kpi-card .value{font-family:var(--font-mono);font-size:22px;font-weight:600;color:var(--navy-950);}
+  .kpi-card .unit{font-size:11.5px;color:var(--slate-400);margin-left:3px;}
+
+  /* ---------- Cards / panels ---------- */
+  .panel{background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius);margin-bottom:22px;}
+  .panel-head{padding:14px 18px;border-bottom:1px solid var(--slate-100);display:flex;justify-content:space-between;align-items:center;}
+  .panel-head h2{font-size:14.5px;margin:0;font-weight:700;color:var(--navy-950);}
+  .panel-body{padding:18px;}
+
+  /* ---------- Tables ---------- */
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{
+    text-align:left;font-size:11px;color:var(--slate-600);font-weight:600;
+    padding:8px 10px;border-bottom:1px solid var(--slate-200);white-space:nowrap;
+  }
+  td{padding:9px 10px;border-bottom:1px solid var(--slate-100);white-space:nowrap;}
+  tr:last-child td{border-bottom:none;}
+  td.num,th.num{text-align:right;font-family:var(--font-mono);}
+  .table-wrap{overflow-x:auto;}
+  .row-click{cursor:pointer;}
+  .row-click:hover{background:var(--slate-50);}
+
+  /* ---------- Badges ---------- */
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:600;}
+  .badge.nuevo{background:#e4f5ea;color:var(--green);}
+  .badge.actualizar{background:#fdf1da;color:var(--amber-dark);}
+  .badge.sin-cambios{background:var(--slate-100);color:var(--slate-600);}
+  .badge.error{background:#fbe6e2;color:var(--red);}
+  .badge.atipico{background:#fdf1da;color:var(--amber-dark);}
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    padding:8px 16px;border-radius:var(--radius);border:1px solid transparent;font-weight:600;font-size:13px;
+  }
+  .btn-primary{background:var(--navy-950);color:#fff;}
+  .btn-primary:hover{background:var(--navy-800);}
+  .btn-primary:disabled{background:var(--slate-400);cursor:not-allowed;}
+  .btn-secondary{background:#fff;color:var(--slate-800);border-color:var(--slate-200);}
+  .btn-secondary:hover{background:var(--slate-50);}
+  .btn-danger{background:#fff;color:var(--red);border-color:#f0cec7;}
+  .btn-danger:hover{background:#fbe6e2;}
+
+  /* ---------- Import zone ---------- */
+  .dropzone{
+    border:2px dashed var(--slate-200);border-radius:8px;padding:40px 20px;text-align:center;
+    color:var(--slate-600);background:var(--slate-50);
+  }
+  .dropzone.drag{border-color:var(--amber);background:#fdf6e6;}
+  .dropzone .icon{font-size:26px;margin-bottom:8px;}
+  .dropzone input[type=file]{display:none;}
+
+  .summary-strip{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0;}
+  .summary-pill{border-radius:var(--radius);padding:10px 16px;flex:1;min-width:120px;border:1px solid var(--slate-200);}
+  .summary-pill .n{font-family:var(--font-mono);font-size:20px;font-weight:700;}
+  .summary-pill .l{font-size:11.5px;color:var(--slate-600);}
+
+  .diff-old{color:var(--slate-400);text-decoration:line-through;font-size:12px;}
+  .diff-new{color:var(--navy-950);font-weight:600;}
+
+  /* ---------- Config screen ---------- */
+  .config-screen{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--navy-950);
+  }
+  .config-box{background:#fff;border-radius:10px;padding:36px;width:420px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+  .config-box h1{font-size:18px;margin:0 0 4px 0;color:var(--navy-950);}
+  .config-box p{font-size:12.5px;color:var(--slate-600);margin:0 0 20px 0;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--slate-800);margin-bottom:5px;}
+  .field input{width:100%;padding:9px 11px;border:1px solid var(--slate-200);border-radius:var(--radius);}
+  .field .hint{font-size:11px;color:var(--slate-400);margin-top:4px;}
+
+  .toast{
+    position:fixed;bottom:20px;right:20px;background:var(--navy-950);color:#fff;padding:12px 18px;
+    border-radius:var(--radius);font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:999;max-width:340px;
+  }
+  .toast.error{background:var(--red);}
+  .toast.success{background:var(--green);}
+
+  .empty{padding:40px 20px;text-align:center;color:var(--slate-400);font-size:13px;}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--slate-200);border-top-color:var(--navy-950);border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;z-index:998;}
+  .modal{background:#fff;border-radius:8px;padding:26px;width:420px;max-width:90vw;}
+  .modal h3{margin:0 0 8px 0;font-size:15px;}
+  .modal p{font-size:13px;color:var(--slate-600);margin:0 0 18px 0;}
+  .modal .actions{display:flex;justify-content:flex-end;gap:8px;}
+
+  .warn-icon{color:var(--amber-dark);}
+  .muted{color:var(--slate-400);}
+  .section-title{font-size:13px;font-weight:700;color:var(--navy-950);margin:22px 0 10px 0;}
+  .vehicle-search{padding:8px 12px;border:1px solid var(--slate-200);border-radius:var(--radius);width:260px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* =========================================================================
+   MÓDULO GPS — App independiente
+   Vistas: Resumen GPS · Vehículos · Histórico · Importar Reporte
+   ========================================================================= */
+
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const MESES_CAP = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const ZONAS_CONOCIDAS_KEY = 'gps_zonas_conocidas';
+const CFG_KEY = 'gps_supabase_config';
+
+let state = {
+  view: 'resumen',
+  sb: null,
+  filters: { periodo:'', vehiculo:'', modelo:'', zona:'' },
+  importState: null, // { file, parsedRows, periodo, periodoLabel, hash, preview, importing }
+};
+
+/* ---------------------------------------------------------------------
+   Config (URL + anon key) — se guarda en localStorage del navegador
+   --------------------------------------------------------------------- */
+function getConfig(){
+  try{ return JSON.parse(localStorage.getItem(CFG_KEY) || 'null'); }catch(e){ return null; }
+}
+function saveConfig(cfg){
+  try{ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }catch(e){}
+}
+function clearConfig(){
+  try{ localStorage.removeItem(CFG_KEY); }catch(e){}
+}
+function getZonasConocidas(){
+  try{ return JSON.parse(localStorage.getItem(ZONAS_CONOCIDAS_KEY) || '["REDES","SALTA"]'); }catch(e){ return ['REDES','SALTA']; }
+}
+function addZonaConocida(z){
+  const list = getZonasConocidas();
+  if(z && !list.includes(z)){ list.push(z); localStorage.setItem(ZONAS_CONOCIDAS_KEY, JSON.stringify(list)); }
+}
+
+function initSupabase(){
+  const cfg = getConfig();
+  if(!cfg || !cfg.url || !cfg.anonKey) return null;
+  try{
+    return window.supabase.createClient(cfg.url, cfg.anonKey);
+  }catch(e){ return null; }
+}
+
+/* ---------------------------------------------------------------------
+   Toasts
+   --------------------------------------------------------------------- */
+function toast(msg, type){
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' '+type : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 4200);
+}
+
+/* ---------------------------------------------------------------------
+   Utilidades de formato
+   --------------------------------------------------------------------- */
+function fmtNum(n, dec){
+  if(n===null || n===undefined || isNaN(n)) return '—';
+  return Number(n).toLocaleString('es-AR', {minimumFractionDigits:dec||0, maximumFractionDigits:dec||0});
+}
+function periodoLabelFromKey(key){
+  if(!key) return '';
+  const [y,m] = key.split('-');
+  return `${MESES_CAP[parseInt(m,10)-1]} ${y}`;
+}
+function esc(s){
+  return String(s===null||s===undefined?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* =========================================================================
+   PARSEO DE EXCEL
+   ========================================================================= */
+function parseDispositivo(raw){
+  const txt = (raw||'').trim().replace(/\s+/g,' ');
+  const parts = txt.split(' ');
+  const patente = (parts.shift()||'').toUpperCase();
+  const zonas = getZonasConocidas();
+  let zona = null, modelo = parts.join(' ');
+  if(parts.length){
+    const last = parts[parts.length-1].toUpperCase();
+    if(zonas.includes(last)){
+      zona = last;
+      modelo = parts.slice(0,-1).join(' ');
+    }
+  }
+  return { patente, modelo: modelo || null, zona };
+}
+
+function parseDistancia(raw){
+  if(raw===null || raw===undefined || raw==='') return null;
+  const s = String(raw).trim().replace(',', '.');
+  const m = s.match(/([\d.]+)\s*(km|m)\b/i);
+  if(!m) return null;
+  const val = parseFloat(m[1]);
+  if(isNaN(val)) return null;
+  return m[2].toLowerCase()==='km' ? round(val,3) : round(val/1000,3);
+}
+
+function parseHoras(raw){
+  if(raw===null || raw===undefined || raw==='') return null;
+  const s = String(raw).trim();
+  if(s==='') return null;
+  const m = s.match(/(\d+)\s*h\s*(\d+)?\s*min?/i);
+  if(m){
+    const h = parseInt(m[1],10) || 0;
+    const min = parseInt(m[2]||'0',10) || 0;
+    return round(h + min/60, 2);
+  }
+  const asNum = parseFloat(s.replace(',','.'));
+  return isNaN(asNum) ? null : asNum;
+}
+
+function parseVelocidad(raw){
+  if(raw===null || raw===undefined || raw==='') return null;
+  const m = String(raw).match(/([\d.,]+)/);
+  if(!m) return null;
+  return round(parseFloat(m[1].replace(',','.')), 1);
+}
+
+function parseLitros(raw){
+  if(raw===null || raw===undefined || raw==='') return null;
+  const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(',','.'));
+  return isNaN(n) ? null : round(n,2);
+}
+
+function parseFechaInicio(raw){
+  if(!raw) return null;
+  if(raw instanceof Date) return raw.toISOString().slice(0,10);
+  const s = String(raw).trim();
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m){
+    const [_, d, mo, y] = m;
+    return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  }
+  return null;
+}
+
+function round(n, dec){
+  const f = Math.pow(10,dec);
+  return Math.round(n*f)/f;
+}
+
+function detectarPeriodo(rows, fileName){
+  // 1. Metadata "Período: dd/mm/yyyy ... — dd/mm/yyyy ..."
+  for(const r of rows){
+    const c0 = String(r[0]||'').toLowerCase();
+    if(c0.includes('período') || c0.includes('periodo')){
+      const val = String(r[1]||'');
+      const m = val.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if(m){
+        const mes = m[2].padStart(2,'0');
+        const anio = m[3];
+        return { periodo: `${anio}-${mes}`, label: periodoLabelFromKey(`${anio}-${mes}`) };
+      }
+    }
+  }
+  // 2. Nombre de archivo: "... Mayo 2026 ..."
+  const lower = (fileName||'').toLowerCase();
+  for(let i=0;i<MESES.length;i++){
+    if(lower.includes(MESES[i])){
+      const y = lower.match(/(20\d{2})/);
+      if(y){
+        const mm = String(i+1).padStart(2,'0');
+        return { periodo: `${y[1]}-${mm}`, label: periodoLabelFromKey(`${y[1]}-${mm}`) };
+      }
+    }
+  }
+  return { periodo: null, label: null };
+}
+
+async function hashFile(file){
+  const buf = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function parseExcel(file){
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type:'array', cellDates:true });
+  const sheetName = wb.SheetNames.find(n=>/resumen/i.test(n)) || wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:null });
+
+  const { periodo, label } = detectarPeriodo(rows, file.name);
+
+  // localizar fila de encabezado ("Dispositivo")
+  let headerIdx = rows.findIndex(r => r[0] && String(r[0]).trim().toLowerCase()==='dispositivo');
+  if(headerIdx === -1) headerIdx = 4; // fallback al layout de referencia
+
+  const dataRows = rows.slice(headerIdx+1).filter(r => r && r[0] && String(r[0]).trim()!=='');
+
+  const parsed = [];
+  const errores = [];
+  const vistosEnArchivo = new Set();
+
+  dataRows.forEach((r, i) => {
+    const dispositivoRaw = r[0];
+    const { patente, modelo, zona } = parseDispositivo(dispositivoRaw);
+    if(!patente){
+      errores.push({ fila: headerIdx+2+i, motivo:'No se pudo identificar la patente', raw: dispositivoRaw });
+      return;
+    }
+    const row = {
+      patente, modelo, zona,
+      fecha_inicio: parseFechaInicio(r[1]),
+      horas_motor: parseHoras(r[2]),
+      horas_ralenti: parseHoras(r[3]),
+      distancia_km: parseDistancia(r[4]),
+      velocidad_maxima: parseVelocidad(r[5]),
+      litros_ypf: parseLitros(r[6]),
+      _dup_en_archivo: false,
+    };
+    if(vistosEnArchivo.has(patente)){
+      row._dup_en_archivo = true;
+    }
+    vistosEnArchivo.add(patente);
+    parsed.push(row);
+  });
+
+  return { periodo, periodoLabel: label, rows: parsed, errores, totalFilas: dataRows.length, sheetName };
+}
+
+/* =========================================================================
+   DATOS — capa Supabase
+   ========================================================================= */
+async function sbSelect(table, cols, filters){
+  let q = state.sb.from(table).select(cols || '*');
+  if(filters){
+    for(const [k,v] of Object.entries(filters)){
+      if(v!==undefined && v!==null && v!=='') q = q.eq(k, v);
+    }
+  }
+  const { data, error } = await q;
+  if(error) throw error;
+  return data;
+}
+
+async function fetchFilterOptions(){
+  const [reportes, vehiculos] = await Promise.all([
+    sbSelect('gps_reportes', 'periodo, periodo_label'),
+    sbSelect('vehiculos', 'dominio, region, label'),
+  ]);
+  const periodos = uniqBy(reportes, 'periodo').sort((a,b)=>b.periodo.localeCompare(a.periodo));
+  const modelos = [...new Set(vehiculos.map(v=>v.label).filter(Boolean))].sort();
+  const zonas = [...new Set(vehiculos.map(v=>v.region).filter(Boolean))].sort();
+  return { periodos, vehiculos, modelos, zonas };
+}
+function uniqBy(arr, key){
+  const seen = new Set(); const out = [];
+  for(const it of arr){ if(!seen.has(it[key])){ seen.add(it[key]); out.push(it); } }
+  return out;
+}
+
+async function fetchReportesFiltrados(filters){
+  let q = state.sb.from('gps_reportes').select('*, vehiculos(dominio, region, label)');
+  if(filters.periodo) q = q.eq('periodo', filters.periodo);
+  const { data, error } = await q;
+  if(error) throw error;
+  let rows = data || [];
+  if(filters.vehiculo) rows = rows.filter(r => r.vehiculo_dominio === filters.vehiculo);
+  if(filters.modelo) rows = rows.filter(r => r.vehiculos && r.vehiculos.label === filters.modelo);
+  if(filters.zona) rows = rows.filter(r => r.vehiculos && r.vehiculos.region === filters.zona);
+  return rows;
+}
+
+function agregarKPIs(rows){
+  const kmTotal = sumField(rows, 'distancia_km');
+  const litrosTotal = sumField(rows, 'litros_ypf');
+  const horasMotor = sumField(rows, 'horas_motor');
+  const horasRalenti = sumField(rows, 'horas_ralenti');
+  const velMax = rows.reduce((m,r)=> r.velocidad_maxima!==null && r.velocidad_maxima>m ? r.velocidad_maxima : m, 0);
+  const kml = litrosTotal ? kmTotal/litrosTotal : null;
+  const l100 = kmTotal ? litrosTotal/(kmTotal/100) : null;
+  const vehiculosCount = new Set(rows.map(r=>r.vehiculo_dominio)).size;
+  return { kmTotal, litrosTotal, horasMotor, horasRalenti, velMax, kml, l100, vehiculosCount };
+}
+function sumField(rows, f){
+  return rows.reduce((s,r)=> s + (r[f]!==null && r[f]!==undefined ? Number(r[f]) : 0), 0);
+}
+
+/* =========================================================================
+   RENDER — shell
+   ========================================================================= */
+function render(){
+  const app = document.getElementById('app');
+  if(!state.sb){
+    app.innerHTML = renderConfigScreen();
+    bindConfigScreen();
+    return;
+  }
+  app.innerHTML = `
+    <div class="sidebar">
+      <div class="brand"><span class="dot"></span><span class="name">Módulo GPS</span><div class="sub">Flota · base_vehiculos</div></div>
+      ${navItem('resumen','Resumen GPS')}
+      ${navItem('vehiculos','Vehículos')}
+      ${navItem('historico','Histórico')}
+      ${navItem('importar','Importar Reporte')}
+      <div class="sidebar-foot">
+        <button id="btn-config">Configuración de conexión</button>
+      </div>
+    </div>
+    <div class="main">
+      <div class="topbar">
+        <h1>${viewTitle(state.view)}</h1>
+        <div class="meta" id="topbar-meta"></div>
+      </div>
+      <div class="content" id="content">Cargando…</div>
+    </div>
+  `;
+  document.getElementById('btn-config').onclick = () => { clearConfig(); state.sb=null; render(); };
+  document.querySelectorAll('.nav-item[data-view]').forEach(b=>{
+    b.onclick = () => { state.view = b.dataset.view; render(); };
+  });
+  renderView();
+}
+function navItem(view, label){
+  const active = state.view===view ? 'active' : '';
+  return `<button class="nav-item ${active}" data-view="${view}">${label}</button>`;
+}
+function viewTitle(v){
+  return { resumen:'Resumen GPS', vehiculos:'Vehículos', historico:'Histórico', importar:'Importar Reporte' }[v] || '';
+}
+
+function renderConfigScreen(){
+  return `
+  <div class="config-screen">
+    <div class="config-box">
+      <h1>Conectar con Supabase</h1>
+      <p>Ingresá la URL y la clave pública (anon key) del proyecto <strong>base_vehiculos</strong>. Se guardan solo en este navegador.</p>
+      <div class="field">
+        <label>Project URL</label>
+        <input id="cfg-url" placeholder="https://oixzkvkybqexvrzwzwis.supabase.co" />
+      </div>
+      <div class="field">
+        <label>Anon / public API key</label>
+        <input id="cfg-key" placeholder="eyJhbGciOi..." />
+        <div class="hint">Dashboard → Project Settings → API → Project API keys → anon public</div>
+      </div>
+      <button class="btn btn-primary" id="cfg-save" style="width:100%">Guardar y conectar</button>
+      <div id="cfg-error" style="color:var(--red);font-size:12px;margin-top:10px;"></div>
+    </div>
+  </div>`;
+}
+function bindConfigScreen(){
+  const cfg = getConfig();
+  if(cfg){ document.getElementById('cfg-url').value = cfg.url||''; document.getElementById('cfg-key').value = cfg.anonKey||''; }
+  document.getElementById('cfg-save').onclick = () => {
+    const url = document.getElementById('cfg-url').value.trim();
+    const key = document.getElementById('cfg-key').value.trim();
+    if(!url || !key){ document.getElementById('cfg-error').textContent = 'Completá ambos campos.'; return; }
+    saveConfig({ url, anonKey:key });
+    state.sb = initSupabase();
+    if(!state.sb){ document.getElementById('cfg-error').textContent = 'No se pudo crear el cliente. Revisá la URL.'; return; }
+    render();
+  };
+}
+
+/* =========================================================================
+   RENDER — vistas
+   ========================================================================= */
+async function renderView(){
+  const content = document.getElementById('content');
+  try{
+    if(state.view === 'resumen') await renderResumen(content);
+    else if(state.view === 'vehiculos') await renderVehiculos(content);
+    else if(state.view === 'historico') await renderHistorico(content);
+    else if(state.view === 'importar') await renderImportar(content);
+  }catch(e){
+    console.error(e);
+    content.innerHTML = `<div class="panel"><div class="panel-body">
+      <strong style="color:var(--red)">No se pudo cargar la vista.</strong>
+      <p class="muted" style="margin-top:8px">${esc(e.message || e)}</p>
+      <p class="muted">Verificá que las tablas del módulo (vehiculos, gps_reportes, gps_importaciones) existan en el proyecto — corré <code>schema.sql</code> si todavía no lo hiciste.</p>
+    </div></div>`;
+  }
+}
+
+function filtersBar(opts, current){
+  return `
+  <div class="filters">
+    <select id="f-periodo">
+      <option value="">Todos los períodos</option>
+      ${opts.periodos.map(p=>`<option value="${p.periodo}" ${current.periodo===p.periodo?'selected':''}>${esc(p.periodo_label)}</option>`).join('')}
+    </select>
+    <select id="f-vehiculo">
+      <option value="">Todos los vehículos</option>
+      ${opts.vehiculos.map(v=>`<option value="${v.dominio}" ${current.vehiculo===v.dominio?'selected':''}>${esc(v.dominio)}</option>`).join('')}
+    </select>
+    <select id="f-modelo">
+      <option value="">Todos los modelos</option>
+      ${opts.modelos.map(m=>`<option value="${esc(m)}" ${current.modelo===m?'selected':''}>${esc(m)}</option>`).join('')}
+    </select>
+    <select id="f-zona">
+      <option value="">Todas las zonas</option>
+      ${opts.zonas.map(z=>`<option value="${esc(z)}" ${current.zona===z?'selected':''}>${esc(z)}</option>`).join('')}
+    </select>
+  </div>`;
+}
+function bindFiltersBar(onChange){
+  ['f-periodo','f-vehiculo','f-modelo','f-zona'].forEach(id=>{
+    document.getElementById(id).onchange = (e) => {
+      const key = id.replace('f-','');
+      state.filters[key] = e.target.value;
+      onChange();
+    };
+  });
+}
+
+/* ---------- RESUMEN GPS ---------- */
+async function renderResumen(content){
+  content.innerHTML = `<div class="empty"><span class="spin"></span> Cargando indicadores…</div>`;
+  const opts = await fetchFilterOptions();
+  const rows = await fetchReportesFiltrados(state.filters);
+  const k = agregarKPIs(rows);
+
+  content.innerHTML = `
+    ${filtersBar(opts, state.filters)}
+    <div class="kpi-grid">
+      ${kpiCard('Vehículos', fmtNum(k.vehiculosCount), '')}
+      ${kpiCard('Km recorridos', fmtNum(k.kmTotal,0), 'km')}
+      ${kpiCard('Litros consumidos', fmtNum(k.litrosTotal,1), 'L')}
+      ${kpiCard('Km / litro', k.kml!==null?fmtNum(k.kml,2):'—', '')}
+      ${kpiCard('Litros / 100km', k.l100!==null?fmtNum(k.l100,1):'—', '')}
+      ${kpiCard('Horas motor', fmtNum(k.horasMotor,0), 'h')}
+      ${kpiCard('Horas ralentí', fmtNum(k.horasRalenti,0), 'h')}
+      ${kpiCard('Vel. máxima', fmtNum(k.velMax,0), 'km/h')}
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Detalle por vehículo${state.filters.periodo? ' — '+esc(periodoLabelFromKey(state.filters.periodo)) : ''}</h2></div>
+      <div class="panel-body table-wrap">
+        ${rows.length ? tablaReportes(rows) : `<div class="empty">No hay datos para estos filtros todavía. Cargá un reporte desde "Importar Reporte".</div>`}
+      </div>
+    </div>
+  `;
+  bindFiltersBar(()=>renderView());
+}
+function kpiCard(label, value, unit){
+  return `<div class="kpi-card"><div class="label">${esc(label)}</div><div class="value">${value}${unit?`<span class="unit">${esc(unit)}</span>`:''}</div></div>`;
+}
+function tablaReportes(rows){
+  const sorted = [...rows].sort((a,b)=> (a.vehiculos?.dominio||'').localeCompare(b.vehiculos?.dominio||''));
+  return `<table>
+    <thead><tr>
+      <th>Vehículo</th><th>Modelo</th><th>Zona</th>
+      <th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th>
+      <th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">Vel. máx</th><th></th>
+    </tr></thead>
+    <tbody>
+      ${sorted.map(r=>`<tr>
+        <td>${esc(r.vehiculos?.dominio||'—')}</td>
+        <td>${esc(r.vehiculos?.label||'—')}</td>
+        <td>${esc(r.vehiculos?.region||'—')}</td>
+        <td class="num">${fmtNum(r.distancia_km,0)}</td>
+        <td class="num">${fmtNum(r.litros_ypf,1)}</td>
+        <td class="num">${(r.litros_ypf && r.distancia_km)? fmtNum(r.distancia_km/r.litros_ypf,2) : '—'}</td>
+        <td class="num">${fmtNum(r.horas_motor,1)}</td>
+        <td class="num">${fmtNum(r.horas_ralenti,1)}</td>
+        <td class="num">${fmtNum(r.velocidad_maxima,0)}</td>
+        <td>${r.es_atipico?'<span class="badge atipico">⚠ atípico</span>':''}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+/* ---------- VEHÍCULOS ---------- */
+async function renderVehiculos(content){
+  content.innerHTML = `<div class="empty"><span class="spin"></span> Cargando vehículos…</div>`;
+  const vehiculos = await sbSelect('vehiculos', '*');
+  const detalle = state._vehiculoSel;
+  if(detalle){
+    return renderVehiculoDetalle(content, detalle);
+  }
+  vehiculos.sort((a,b)=>a.dominio.localeCompare(b.dominio));
+  content.innerHTML = `
+    <input class="vehicle-search" id="v-search" placeholder="Buscar dominio, modelo o zona…" />
+    <div class="panel" style="margin-top:14px">
+      <div class="panel-body table-wrap">
+        <table>
+          <thead><tr><th>Dominio</th><th>Modelo</th><th>Zona</th></tr></thead>
+          <tbody id="v-tbody">
+            ${vehiculos.map(v=>filaVehiculo(v)).join('')}
+          </tbody>
+        </table>
+        ${vehiculos.length? '' : '<div class="empty">Todavía no hay vehículos cargados. Importá un reporte para crearlos automáticamente.</div>'}
+      </div>
+    </div>
+  `;
+  const bindRows = () => {
+    document.querySelectorAll('.row-click').forEach(tr=>{
+      tr.onclick = () => { state._vehiculoSel = tr.dataset.id; renderView(); };
+    });
+  };
+  bindRows();
+  document.getElementById('v-search').oninput = (e) => {
+    const q = e.target.value.toLowerCase();
+    const filtered = vehiculos.filter(v => (v.dominio+' '+(v.label||'')+' '+(v.region||'')).toLowerCase().includes(q));
+    document.getElementById('v-tbody').innerHTML = filtered.map(v=>filaVehiculo(v)).join('');
+    bindRows();
+  };
+}
+function filaVehiculo(v){
+  return `<tr class="row-click" data-id="${esc(v.dominio)}">
+    <td><strong>${esc(v.dominio)}</strong></td>
+    <td>${esc(v.label||'—')}</td>
+    <td>${v.region? esc(v.region) : '<span class="muted">sin asignar</span>'}</td>
+  </tr>`;
+}
+async function renderVehiculoDetalle(content, vehiculoDominio){
+  const [vehiculo] = await sbSelect('vehiculos', '*', { dominio: vehiculoDominio });
+  const reportes = await sbSelect('gps_reportes', '*', { vehiculo_dominio: vehiculoDominio });
+  reportes.sort((a,b)=>a.periodo.localeCompare(b.periodo));
+  const k = agregarKPIs(reportes);
+  content.innerHTML = `
+    <button class="btn btn-secondary" id="v-back">← Volver a vehículos</button>
+    <div class="panel" style="margin-top:14px">
+      <div class="panel-head"><h2>${esc(vehiculo.dominio)}</h2></div>
+      <div class="panel-body">
+        <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))">
+          ${kpiCard('Modelo', vehiculo.label||'—','')}
+          ${kpiCard('Zona', vehiculo.region||'—','')}
+          ${kpiCard('Km totales', fmtNum(k.kmTotal,0),'km')}
+          ${kpiCard('Litros totales', fmtNum(k.litrosTotal,1),'L')}
+          ${kpiCard('Km/L prom.', k.kml!==null?fmtNum(k.kml,2):'—','')}
+          ${kpiCard('Hs motor', fmtNum(k.horasMotor,0),'h')}
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Evolución mensual</h2></div>
+      <div class="panel-body">
+        ${reportes.length ? '<canvas id="v-chart" height="90"></canvas>' : '<div class="empty">Sin histórico todavía para este vehículo.</div>'}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Reportes por período</h2></div>
+      <div class="panel-body table-wrap">
+        <table>
+          <thead><tr><th>Período</th><th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th><th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">Vel. máx</th></tr></thead>
+          <tbody>
+            ${reportes.map(r=>`<tr>
+              <td>${esc(r.periodo_label)}</td>
+              <td class="num">${fmtNum(r.distancia_km,0)}</td>
+              <td class="num">${fmtNum(r.litros_ypf,1)}</td>
+              <td class="num">${(r.litros_ypf && r.distancia_km)? fmtNum(r.distancia_km/r.litros_ypf,2) : '—'}</td>
+              <td class="num">${fmtNum(r.horas_motor,1)}</td>
+              <td class="num">${fmtNum(r.horas_ralenti,1)}</td>
+              <td class="num">${fmtNum(r.velocidad_maxima,0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  document.getElementById('v-back').onclick = () => { state._vehiculoSel = null; renderView(); };
+  if(reportes.length){
+    new Chart(document.getElementById('v-chart'), {
+      type:'line',
+      data:{
+        labels: reportes.map(r=>r.periodo_label),
+        datasets:[
+          { label:'Km', data: reportes.map(r=>r.distancia_km), borderColor:'#152238', backgroundColor:'transparent', tension:.25 },
+          { label:'Litros', data: reportes.map(r=>r.litros_ypf), borderColor:'#e6a91b', backgroundColor:'transparent', tension:.25, yAxisID:'y1' },
+        ]
+      },
+      options:{ responsive:true, interaction:{mode:'index',intersect:false},
+        scales:{ y:{ title:{display:true,text:'Km'} }, y1:{ position:'right', title:{display:true,text:'Litros'}, grid:{drawOnChartArea:false} } } }
+    });
+  }
+}
+
+/* ---------- HISTÓRICO ---------- */
+async function renderHistorico(content){
+  content.innerHTML = `<div class="empty"><span class="spin"></span> Cargando histórico…</div>`;
+  const opts = await fetchFilterOptions();
+  const filtrosHist = { ...state.filters, periodo:'' }; // histórico siempre muestra todos los períodos
+  const rows = await fetchReportesFiltrados(filtrosHist);
+
+  const porPeriodo = {};
+  rows.forEach(r=>{
+    if(!porPeriodo[r.periodo]) porPeriodo[r.periodo] = { periodo_label:r.periodo_label, rows:[] };
+    porPeriodo[r.periodo].rows.push(r);
+  });
+  const periodos = Object.keys(porPeriodo).sort();
+  const serieKm = periodos.map(p=>sumField(porPeriodo[p].rows,'distancia_km'));
+  const serieLitros = periodos.map(p=>sumField(porPeriodo[p].rows,'litros_ypf'));
+  const serieKml = periodos.map((p,i)=> serieLitros[i] ? round(serieKm[i]/serieLitros[i],2) : null);
+  const serieHsMotor = periodos.map(p=>sumField(porPeriodo[p].rows,'horas_motor'));
+
+  content.innerHTML = `
+    ${filtersBar({...opts, periodos:[]}, state.filters)}
+    <div class="panel">
+      <div class="panel-head"><h2>Evolución mensual</h2></div>
+      <div class="panel-body">
+        ${periodos.length ? '<canvas id="h-chart" height="90"></canvas>' : '<div class="empty">Todavía no hay más de un período cargado para mostrar evolución.</div>'}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Detalle por período</h2></div>
+      <div class="panel-body table-wrap">
+        <table>
+          <thead><tr><th>Período</th><th class="num">Vehículos</th><th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th><th class="num">Hs motor</th><th class="num">Hs ralentí</th></tr></thead>
+          <tbody>
+            ${periodos.map(p=>{
+              const kk = agregarKPIs(porPeriodo[p].rows);
+              return `<tr>
+                <td>${esc(porPeriodo[p].periodo_label)}</td>
+                <td class="num">${kk.vehiculosCount}</td>
+                <td class="num">${fmtNum(kk.kmTotal,0)}</td>
+                <td class="num">${fmtNum(kk.litrosTotal,1)}</td>
+                <td class="num">${kk.kml!==null?fmtNum(kk.kml,2):'—'}</td>
+                <td class="num">${fmtNum(kk.horasMotor,0)}</td>
+                <td class="num">${fmtNum(kk.horasRalenti,0)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        ${periodos.length? '' : '<div class="empty">Sin datos históricos todavía.</div>'}
+      </div>
+    </div>
+  `;
+  bindFiltersBar(()=>renderView());
+  if(periodos.length){
+    new Chart(document.getElementById('h-chart'), {
+      type:'line',
+      data:{
+        labels: periodos.map(p=>porPeriodo[p].periodo_label),
+        datasets:[
+          { label:'Km totales', data: serieKm, borderColor:'#152238', backgroundColor:'transparent', tension:.25 },
+          { label:'Litros totales', data: serieLitros, borderColor:'#e6a91b', backgroundColor:'transparent', tension:.25, yAxisID:'y1' },
+        ]
+      },
+      options:{ responsive:true, interaction:{mode:'index',intersect:false},
+        scales:{ y:{title:{display:true,text:'Km'}}, y1:{position:'right', title:{display:true,text:'Litros'}, grid:{drawOnChartArea:false}} } }
+    });
+  }
+}
+
+/* ---------- IMPORTAR REPORTE ---------- */
+async function renderImportar(content){
+  content.innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><h2>Cargar archivo Excel</h2></div>
+      <div class="panel-body">
+        <div class="dropzone" id="dz">
+          <div class="icon">📄</div>
+          <div><strong>Arrastrá el archivo acá</strong> o hacé clic para elegirlo</div>
+          <div class="muted" style="margin-top:4px;font-size:12px">Formato esperado: hoja "Resumen" con columnas Dispositivo, Fecha de inicio, Horas motor, Horas en ralentí, Distancia, Velocidad máxima, Litros YPF</div>
+          <input type="file" id="file-input" accept=".xlsx,.xls" />
+        </div>
+      </div>
+    </div>
+    <div id="import-result"></div>
+    <div class="panel">
+      <div class="panel-head"><h2>Cargas anteriores</h2></div>
+      <div class="panel-body table-wrap" id="historial-cargas"><div class="empty"><span class="spin"></span></div></div>
+    </div>
+  `;
+  const dz = document.getElementById('dz');
+  const fileInput = document.getElementById('file-input');
+  dz.onclick = () => fileInput.click();
+  ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev, e=>{e.preventDefault(); dz.classList.add('drag');}));
+  ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev, e=>{e.preventDefault(); dz.classList.remove('drag');}));
+  dz.addEventListener('drop', e=>{ if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+  fileInput.onchange = e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); };
+
+  loadHistorialCargas();
+}
+
+async function loadHistorialCargas(){
+  const el = document.getElementById('historial-cargas');
+  try{
+    const { data, error } = await state.sb.from('gps_importaciones').select('*').order('fecha_carga', { ascending:false }).limit(20);
+    if(error) throw error;
+    if(!data.length){ el.innerHTML = '<div class="empty">Todavía no se procesó ningún archivo.</div>'; return; }
+    el.innerHTML = `<table>
+      <thead><tr><th>Fecha</th><th>Archivo</th><th>Período</th><th class="num">Nuevos</th><th class="num">Actualizados</th><th class="num">Sin cambios</th><th class="num">Errores</th><th>Estado</th></tr></thead>
+      <tbody>${data.map(i=>`<tr>
+        <td>${new Date(i.fecha_carga).toLocaleString('es-AR')}</td>
+        <td>${esc(i.nombre_archivo)}</td>
+        <td>${esc(i.periodo_label)}</td>
+        <td class="num">${i.registros_nuevos}</td>
+        <td class="num">${i.registros_actualizados}</td>
+        <td class="num">${i.registros_sin_cambios}</td>
+        <td class="num">${i.registros_error}</td>
+        <td>${i.estado}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }catch(e){
+    el.innerHTML = `<div class="empty">No se pudo cargar el historial (${esc(e.message||e)}).</div>`;
+  }
+}
+
+async function handleFile(file){
+  const resultEl = document.getElementById('import-result');
+  resultEl.innerHTML = `<div class="empty"><span class="spin"></span> Analizando archivo…</div>`;
+  try{
+    const hash = await hashFile(file);
+    const { data: yaExiste } = await state.sb.from('gps_importaciones').select('id, nombre_archivo, fecha_carga').eq('hash_archivo', hash).limit(1);
+    const parsed = await parseExcel(file);
+
+    if(!parsed.periodo){
+      resultEl.innerHTML = `<div class="panel"><div class="panel-body"><strong style="color:var(--red)">No se pudo identificar el período del reporte.</strong><p class="muted">Verificá que el archivo tenga la fila "Período:" o que el nombre del archivo incluya el mes y el año (ej: "GPS resumen Mayo 2026.xlsx").</p></div></div>`;
+      return;
+    }
+
+    if(yaExiste && yaExiste.length){
+      const proceed = await confirmModal(
+        'Este archivo ya fue procesado anteriormente',
+        `Se cargó el ${new Date(yaExiste[0].fecha_carga).toLocaleString('es-AR')} como "${yaExiste[0].nombre_archivo}". Podés cancelar, o continuar igual si sabés que el contenido cambió.`,
+        'Continuar igual'
+      );
+      if(!proceed){ resultEl.innerHTML=''; return; }
+    }
+
+    await buildPreview(file, hash, parsed, resultEl);
+  }catch(e){
+    console.error(e);
+    resultEl.innerHTML = `<div class="panel"><div class="panel-body"><strong style="color:var(--red)">Error al leer el archivo.</strong><p class="muted">${esc(e.message||e)}</p></div></div>`;
+  }
+}
+
+async function buildPreview(file, hash, parsed, resultEl){
+  resultEl.innerHTML = `<div class="empty"><span class="spin"></span> Comparando con Supabase…</div>`;
+
+  // vehículos existentes (para resolver patente -> dominio, o detectar que hay que crearlo)
+  const vehiculosExistentes = await sbSelect('vehiculos', '*');
+  const porPatente = {}; vehiculosExistentes.forEach(v=>porPatente[v.dominio]=v);
+
+  // reportes existentes para este período
+  let reportesExistentes = [];
+  if(vehiculosExistentes.length){
+    const { data, error } = await state.sb.from('gps_reportes').select('*').eq('periodo', parsed.periodo);
+    if(error) throw error;
+    reportesExistentes = data;
+  }
+  const reportePorVehiculoId = {}; reportesExistentes.forEach(r=>reportePorVehiculoId[r.vehiculo_dominio]=r);
+
+  const camposComparar = ['fecha_inicio','horas_motor','horas_ralenti','distancia_km','velocidad_maxima','litros_ypf'];
+  const distancias = parsed.rows.map(r=>r.distancia_km).filter(v=>v!==null);
+  const mediana = medianOf(distancias);
+
+  const preview = parsed.rows.map(row => {
+    if(row._dup_en_archivo){
+      return { ...row, estado:'error', motivo:'Patente duplicada dentro del mismo archivo' };
+    }
+    const esAtipico = row.distancia_km!==null && mediana>0 && row.distancia_km > mediana*5;
+    const vehiculoExistente = porPatente[row.patente];
+    if(!vehiculoExistente){
+      return { ...row, estado:'nuevo', esAtipico, diffs:null };
+    }
+    const reporteExistente = reportePorVehiculoId[vehiculoExistente.dominio];
+    if(!reporteExistente){
+      return { ...row, estado:'nuevo', esAtipico, diffs:null };
+    }
+    const diffs = {};
+    let cambio = false;
+    camposComparar.forEach(c=>{
+      const antes = reporteExistente[c];
+      const despues = row[c];
+      const a = antes===undefined?null:antes;
+      const d = despues===undefined?null:despues;
+      if(String(a) !== String(d)){ cambio = true; diffs[c] = { antes:a, despues:d }; }
+    });
+    return cambio
+      ? { ...row, estado:'actualizar', esAtipico, diffs, reporteId: reporteExistente.id, vehiculoId: vehiculoExistente.dominio }
+      : { ...row, estado:'sin-cambios', esAtipico, diffs:null, reporteId: reporteExistente.id, vehiculoId: vehiculoExistente.dominio };
+  });
+
+  parsed.errores.forEach(e => preview.push({ patente:'—', estado:'error', motivo: e.motivo + (e.raw? ` ("${e.raw}")`:'') }));
+
+  state.importState = { file, hash, parsed, preview };
+  renderPreview(resultEl);
+}
+
+function medianOf(arr){
+  if(!arr.length) return 0;
+  const s = [...arr].sort((a,b)=>a-b);
+  const mid = Math.floor(s.length/2);
+  return s.length%2 ? s[mid] : (s[mid-1]+s[mid])/2;
+}
+
+function renderPreview(resultEl){
+  const { parsed, preview } = state.importState;
+  const counts = { nuevo:0, actualizar:0, 'sin-cambios':0, error:0 };
+  preview.forEach(p=>counts[p.estado]++);
+
+  resultEl.innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><h2>Reporte detectado</h2></div>
+      <div class="panel-body">
+        <p><strong>Archivo:</strong> ${esc(state.importState.file.name)} &nbsp; · &nbsp; <strong>Período:</strong> ${esc(parsed.periodoLabel)} &nbsp; · &nbsp; <strong>Registros:</strong> ${parsed.totalFilas}</p>
+        <div class="summary-strip">
+          <div class="summary-pill" style="border-color:#cdeedb"><div class="n" style="color:var(--green)">${counts.nuevo}</div><div class="l">🟢 Nuevos</div></div>
+          <div class="summary-pill" style="border-color:#f6e2b8"><div class="n" style="color:var(--amber-dark)">${counts.actualizar}</div><div class="l">🟡 Actualizar</div></div>
+          <div class="summary-pill"><div class="n" style="color:var(--slate-600)">${counts['sin-cambios']}</div><div class="l">⚪ Sin cambios</div></div>
+          <div class="summary-pill" style="border-color:#f3cec5"><div class="n" style="color:var(--red)">${counts.error}</div><div class="l">🔴 Errores</div></div>
+        </div>
+        <div class="table-wrap" style="max-height:420px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Vehículo</th><th>Estado</th><th>Detalle</th></tr></thead>
+            <tbody>
+              ${preview.map(p=>`<tr>
+                <td>${esc(p.patente)}${p.esAtipico?' <span class="badge atipico">⚠ atípico</span>':''}</td>
+                <td>${badgeEstado(p.estado)}</td>
+                <td>${detalleFila(p)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px">
+          <button class="btn btn-secondary" id="btn-cancelar">Cancelar</button>
+          <button class="btn btn-primary" id="btn-confirmar" ${counts.nuevo+counts.actualizar===0?'disabled':''}>Confirmar importación</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('btn-cancelar').onclick = () => { state.importState=null; resultEl.innerHTML=''; };
+  document.getElementById('btn-confirmar').onclick = () => ejecutarImportacion(resultEl);
+}
+function badgeEstado(estado){
+  const map = { nuevo:['nuevo','Nuevo'], actualizar:['actualizar','Actualizar'], 'sin-cambios':['sin-cambios','Sin cambios'], error:['error','Error'] };
+  const [cls,label] = map[estado] || ['','—'];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+function detalleFila(p){
+  if(p.estado==='error') return `<span class="muted">${esc(p.motivo||'')}</span>`;
+  if(p.estado==='nuevo') return `<span class="diff-new">Km: ${fmtNum(p.distancia_km,0)} · Litros: ${fmtNum(p.litros_ypf,1)}</span>`;
+  if(p.estado==='sin-cambios') return `<span class="muted">—</span>`;
+  if(p.estado==='actualizar' && p.diffs){
+    return Object.entries(p.diffs).map(([campo,v])=>
+      `<span class="diff-old">${esc(String(v.antes ?? '—'))}</span> → <span class="diff-new">${esc(String(v.despues ?? '—'))}</span> <span class="muted">(${campo})</span>`
+    ).join('<br>');
+  }
+  return '';
+}
+
+async function ejecutarImportacion(resultEl){
+  const btn = document.getElementById('btn-confirmar');
+  btn.disabled = true; btn.textContent = 'Importando…';
+  const { parsed, preview, hash, file } = state.importState;
+
+  try{
+    let nuevos=0, actualizados=0, sinCambios=0, errores=0;
+
+    for(const row of preview){
+      if(row.estado==='error'){ errores++; continue; }
+      if(row.estado==='sin-cambios'){ sinCambios++; continue; }
+
+      // resolver / crear vehiculo (dominio = patente detectada en el Excel)
+      const vehiculoDominio = row.vehiculoId || row.patente;
+      if(!row.vehiculoId){
+        const { data: existing } = await state.sb.from('vehiculos').select('dominio').eq('dominio', row.patente).maybeSingle();
+        if(existing){
+          if(row.modelo || row.zona){
+            await state.sb.from('vehiculos').update({ label: row.modelo, region: row.zona }).eq('dominio', row.patente);
+          }
+        }else{
+          const { error: errCreate } = await state.sb.from('vehiculos')
+            .insert({ dominio: row.patente, label: row.modelo, region: row.zona });
+          if(errCreate) throw errCreate;
+          if(row.zona) addZonaConocida(row.zona);
+        }
+      }
+
+      const payload = {
+        vehiculo_dominio: vehiculoDominio,
+        periodo: parsed.periodo,
+        periodo_label: parsed.periodoLabel,
+        fecha_inicio: row.fecha_inicio,
+        horas_motor: row.horas_motor,
+        horas_ralenti: row.horas_ralenti,
+        distancia_km: row.distancia_km,
+        velocidad_maxima: row.velocidad_maxima,
+        litros_ypf: row.litros_ypf,
+        es_atipico: !!row.esAtipico,
+      };
+
+      if(row.estado==='nuevo'){
+        const { error: errIns } = await state.sb.from('gps_reportes').insert({ ...payload, importacion_id: null });
+        if(errIns) throw errIns;
+        nuevos++;
+      }else if(row.estado==='actualizar'){
+        const { error: errUpd } = await state.sb.from('gps_reportes').update(payload).eq('id', row.reporteId);
+        if(errUpd) throw errUpd;
+        actualizados++;
+      }
+    }
+
+    const { data: importacion, error: errImp } = await state.sb.from('gps_importaciones').insert({
+      nombre_archivo: file.name,
+      periodo: parsed.periodo,
+      periodo_label: parsed.periodoLabel,
+      hash_archivo: hash,
+      total_registros: parsed.totalFilas,
+      registros_nuevos: nuevos,
+      registros_actualizados: actualizados,
+      registros_sin_cambios: sinCambios,
+      registros_error: errores,
+      estado: 'completado',
+    }).select('id').single();
+    if(errImp) throw errImp;
+
+    // vincular reportes nuevos a la importación
+    await state.sb.from('gps_reportes').update({ importacion_id: importacion.id })
+      .eq('periodo', parsed.periodo).is('importacion_id', null);
+
+    toast(`Importación completada: ${nuevos} nuevos, ${actualizados} actualizados, ${sinCambios} sin cambios.`, 'success');
+    state.importState = null;
+    resultEl.innerHTML = '';
+    document.getElementById('file-input').value = '';
+    loadHistorialCargas();
+  }catch(e){
+    console.error(e);
+    toast('Error al importar: ' + (e.message||e), 'error');
+    btn.disabled = false; btn.textContent = 'Confirmar importación';
+  }
+}
+
+/* ---------- Modal de confirmación genérico ---------- */
+function confirmModal(title, body, confirmLabel){
+  return new Promise(resolve=>{
+    const bg = document.createElement('div');
+    bg.className = 'modal-bg';
+    bg.innerHTML = `<div class="modal">
+      <h3>${esc(title)}</h3>
+      <p>${esc(body)}</p>
+      <div class="actions">
+        <button class="btn btn-secondary" id="m-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="m-ok">${esc(confirmLabel||'Continuar')}</button>
+      </div>
+    </div>`;
+    document.body.appendChild(bg);
+    bg.querySelector('#m-cancel').onclick = () => { bg.remove(); resolve(false); };
+    bg.querySelector('#m-ok').onclick = () => { bg.remove(); resolve(true); };
+  });
+}
+
+/* ---------------------------------------------------------------------
+   Bootstrap
+   --------------------------------------------------------------------- */
+state.sb = initSupabase();
+render();
+</script>
+</body>
+</html>
