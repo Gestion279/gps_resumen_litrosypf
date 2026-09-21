@@ -1069,7 +1069,7 @@ function tablaReportes(rows, activosSet){
   const sorted = [...rows].sort((a,b)=> (a.vehiculos?.dominio||'').localeCompare(b.vehiculos?.dominio||''));
   return `<table>
     <thead><tr>
-      <th>Vehículo</th><th>Modelo</th><th>Zona</th>
+      <th>Dispositivo</th><th>Zona</th>
       <th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th>
       <th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">Vel. máx</th><th>Estado</th><th></th>
     </tr></thead>
@@ -1078,9 +1078,9 @@ function tablaReportes(rows, activosSet){
         const dominio = r.vehiculos?.dominio || '';
         const activo = activosSet && activosSet.has(dominio);
         const zona = r.zona_periodo || r.vehiculos?.region;
+        const modelo = r.modelo_periodo || r.vehiculos?.label;
         return `<tr class="row-click" data-dominio="${esc(dominio)}">
-        <td><strong>${esc(dominio||'—')}</strong>${r.es_atipico?' <span class="badge atipico">⚠</span>':''}</td>
-        <td>${esc(r.modelo_periodo || r.vehiculos?.label || '—')}</td>
+        <td><strong>${esc(nombreCompleto(dominio, modelo)||'—')}</strong>${r.es_atipico?' <span class="badge atipico">⚠</span>':''}</td>
         <td>${zona?`<span class="pill-zona">${esc(zona)}</span>`:'<span class="muted">—</span>'}</td>
         <td class="num">${fmtNum(r.distancia_km,0)}</td>
         <td class="num">${fmtNum(r.litros_ypf,1)}</td>
@@ -1095,18 +1095,21 @@ function tablaReportes(rows, activosSet){
     </tbody>
   </table>`;
 }
+function nombreCompleto(patente, modelo){
+  return [patente, modelo].filter(Boolean).join(' ');
+}
 function bindTablaReportesRows(){
   document.querySelectorAll('#tabla-detalle tr.row-click').forEach(tr=>{
     tr.onclick = () => { state.view='vehiculos'; state._vehiculoSel = tr.dataset.dominio; render(); };
   });
 }
 function exportarCSV(rows){
-  const headers = ['Vehiculo','Modelo','Zona','Periodo','Km','Litros','Km_L','HsMotor','HsRalenti','VelMax'];
+  const headers = ['Dispositivo','Zona','Periodo','Km','Litros','Km_L','HsMotor','HsRalenti','VelMax'];
   const lines = [headers.join(';')];
   rows.forEach(r=>{
     const kml = (r.litros_ypf && r.distancia_km) ? (r.distancia_km/r.litros_ypf).toFixed(2) : '';
     lines.push([
-      r.vehiculos?.dominio||'', r.modelo_periodo||r.vehiculos?.label||'', r.zona_periodo||r.vehiculos?.region||'',
+      nombreCompleto(r.vehiculos?.dominio, r.modelo_periodo||r.vehiculos?.label), r.zona_periodo||r.vehiculos?.region||'',
       r.periodo_label||'', r.distancia_km??'', r.litros_ypf??'', kml, r.horas_motor??'', r.horas_ralenti??'', r.velocidad_maxima??''
     ].map(v=>String(v).replace(/;/g,',')).join(';'));
   });
@@ -1138,7 +1141,7 @@ async function renderVehiculos(content){
       </div>
       <div class="panel-body table-wrap">
         <table>
-          <thead><tr><th>Dominio</th><th>Modelo</th><th>Zona</th><th></th></tr></thead>
+          <thead><tr><th>Dispositivo</th><th>Zona</th><th></th></tr></thead>
           <tbody id="v-tbody">
             ${vehiculos.map(v=>filaVehiculo(v)).join('')}
           </tbody>
@@ -1162,8 +1165,7 @@ async function renderVehiculos(content){
 }
 function filaVehiculo(v){
   return `<tr class="row-click" data-id="${esc(v.dominio)}">
-    <td><strong>${esc(v.dominio)}</strong></td>
-    <td>${esc(v.label||'—')}</td>
+    <td><strong>${esc(nombreCompleto(v.dominio, v.label))}</strong></td>
     <td>${v.region? `<span class="pill-zona">${esc(v.region)}</span>` : '<span class="muted">sin asignar</span>'}</td>
     <td class="row-chevron">${icon('chevronRight')}</td>
   </tr>`;
