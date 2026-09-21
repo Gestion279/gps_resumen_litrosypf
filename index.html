@@ -106,11 +106,12 @@
   .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;}
   .filter-pill{
     position:relative;display:flex;align-items:center;border:1px solid var(--slate-200);
-    border-radius:var(--radius-sm);background:#fff;padding:0 10px;height:32px;
+    border-radius:var(--radius-sm);background:var(--p-lightest);padding:0 12px;height:34px;overflow:hidden;
   }
+  .filter-pill svg{width:14px;height:14px;min-width:14px;color:var(--slate-600);flex:none;margin-right:7px;}
   .filter-pill select{
     border:none;background:transparent;padding:0;color:var(--slate-800);
-    min-width:90px;font-weight:600;font-size:12.5px;appearance:none;-webkit-appearance:none;
+    min-width:170px;font-weight:600;font-size:12.5px;appearance:none;-webkit-appearance:none;
   }
   .filter-pill select:focus{outline:none;}
   .filter-pill.active-filter{border-color:var(--teal-600);}
@@ -703,6 +704,7 @@ async function parseExcel(file){
     const claveDup = patente+'|'+periodo;
     const row = {
       patente, modelo, zona, periodo, periodoLabel,
+      dispositivo_original: normalizarTextoConservandoMayus(dispositivoRaw),
       fecha_inicio,
       horas_motor: mapa.horas_motor!==undefined ? parseHoras(r[mapa.horas_motor]) : null,
       horas_ralenti: mapa.horas_ralenti!==undefined ? parseHoras(r[mapa.horas_ralenti]) : null,
@@ -746,7 +748,7 @@ async function sbSelect(table, cols, filters){
 async function fetchFilterOptions(){
   const [reportes, vehiculos] = await Promise.all([
     sbSelect('gps_reportes', 'periodo, periodo_label, zona_periodo, modelo_periodo'),
-    sbSelect('vehiculos', 'dominio, region, label'),
+    sbSelect('vehiculos', 'dominio, region, label, nombre_completo'),
   ]);
   const periodos = uniqBy(reportes, 'periodo').sort((a,b)=>b.periodo.localeCompare(a.periodo));
   // unión de lo que hay en vehiculos (zona/modelo actuales) + lo que aparece
@@ -903,7 +905,7 @@ function filtersBar(opts, current){
     </select></div>
     <div class="filter-pill">${icon('car')}<select id="f-vehiculo">
       <option value="">Todos los dispositivos</option>
-      ${opts.vehiculos.map(v=>`<option value="${v.dominio}" ${current.vehiculo===v.dominio?'selected':''}>${esc(nombreCompleto(v.dominio, v.label))}</option>`).join('')}
+      ${opts.vehiculos.map(v=>`<option value="${v.dominio}" ${current.vehiculo===v.dominio?'selected':''}>${esc(v.nombre_completo || nombreCompleto(v.dominio, v.label))}</option>`).join('')}
     </select></div>
   </div>`;
 }
@@ -1020,8 +1022,9 @@ function tablaReportes(rows, activosSet){
         const activo = activosSet && activosSet.has(dominio);
         const zona = r.zona_periodo || r.vehiculos?.region;
         const modelo = r.modelo_periodo || r.vehiculos?.label;
+        const nombre = r.dispositivo_original || nombreCompleto(dominio, modelo);
         return `<tr class="row-click" data-dominio="${esc(dominio)}">
-        <td><strong>${esc(nombreCompleto(dominio, modelo)||'—')}</strong>${r.es_atipico?' <span class="badge atipico">⚠</span>':''}</td>
+        <td><strong>${esc(nombre||'—')}</strong>${r.es_atipico?' <span class="badge atipico">⚠</span>':''}</td>
         <td>${zona?`<span class="pill-zona">${esc(zona)}</span>`:'<span class="muted">—</span>'}</td>
         <td class="num">${fmtNum(r.distancia_km,0)}</td>
         <td class="num">${fmtNum(r.litros_ypf,1)}</td>
@@ -1037,6 +1040,9 @@ function tablaReportes(rows, activosSet){
   </table>`;
 }
 function nombreCompleto(patente, modelo){
+  // defensivo: si el modelo ya arranca con la patente (dato viejo mal separado),
+  // no la volvemos a anteponer — así nunca se puede duplicar el nombre.
+  if(modelo && patente && modelo.toUpperCase().startsWith(patente.toUpperCase())) return modelo;
   return [patente, modelo].filter(Boolean).join(' ');
 }
 function bindTablaReportesRows(){
@@ -1050,7 +1056,7 @@ function exportarCSV(rows){
   rows.forEach(r=>{
     const kml = (r.litros_ypf && r.distancia_km) ? (r.distancia_km/r.litros_ypf).toFixed(2) : '';
     lines.push([
-      nombreCompleto(r.vehiculos?.dominio, r.modelo_periodo||r.vehiculos?.label), r.zona_periodo||r.vehiculos?.region||'',
+      r.dispositivo_original || nombreCompleto(r.vehiculos?.dominio, r.modelo_periodo||r.vehiculos?.label), r.zona_periodo||r.vehiculos?.region||'',
       r.periodo_label||'', r.distancia_km??'', r.litros_ypf??'', kml, r.horas_motor??'', r.horas_ralenti??'', r.velocidad_maxima??''
     ].map(v=>String(v).replace(/;/g,',')).join(';'));
   });
@@ -1116,7 +1122,7 @@ async function renderVehiculoDetalle(content, vehiculoDominio){
     <button class="btn btn-secondary" id="v-back"><span style="display:inline-flex;transform:scaleX(-1)">${icon('chevronRight')}</span> Volver a vehículos</button>
     <div class="panel" style="margin-top:14px">
       <div class="panel-head">
-        <div class="panel-head-left"><span class="ic">${icon('truck')}</span><div><h2>${esc(vehiculo.dominio)}</h2><div class="sub">${esc(vehiculo.label||'Modelo sin datos')}${vehiculo.region?' · '+esc(vehiculo.region):''}</div></div></div>
+        <div class="panel-head-left"><span class="ic">${icon('truck')}</span><div><h2>${esc(vehiculo.nombre_completo || nombreCompleto(vehiculo.dominio, vehiculo.label))}</h2><div class="sub">Dominio ${esc(vehiculo.dominio)}${vehiculo.region?' · '+esc(vehiculo.region):''}</div></div></div>
       </div>
       <div class="panel-body">
         <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
@@ -1137,10 +1143,11 @@ async function renderVehiculoDetalle(content, vehiculoDominio){
       <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('calendar')}</span><h2>Reportes por período</h2></div></div>
       <div class="panel-body table-wrap">
         <table>
-          <thead><tr><th>Período</th><th>Zona</th><th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th><th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">Vel. máx</th></tr></thead>
+          <thead><tr><th>Período</th><th>Dispositivo (como en el reporte)</th><th>Zona</th><th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th><th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">Vel. máx</th></tr></thead>
           <tbody>
             ${reportes.map(r=>`<tr>
               <td>${esc(r.periodo_label)}</td>
+              <td>${esc(r.dispositivo_original || nombreCompleto(vehiculo.dominio, r.modelo_periodo||vehiculo.label))}</td>
               <td>${(r.zona_periodo || vehiculo.region) ? `<span class="pill-zona">${esc(r.zona_periodo || vehiculo.region)}</span>` : '<span class="muted">—</span>'}</td>
               <td class="num">${fmtNum(r.distancia_km,0)}</td>
               <td class="num">${fmtNum(r.litros_ypf,1)}</td>
@@ -1347,7 +1354,7 @@ async function buildPreview(file, hash, parsed, resultEl){
   }
   const reportePorClave = {}; reportesExistentes.forEach(r=>reportePorClave[r.vehiculo_dominio+'|'+r.periodo]=r);
 
-  const camposComparar = ['fecha_inicio','horas_motor','horas_ralenti','distancia_km','velocidad_maxima','litros_ypf','zona_periodo','modelo_periodo'];
+  const camposComparar = ['fecha_inicio','horas_motor','horas_ralenti','distancia_km','velocidad_maxima','litros_ypf','zona_periodo','modelo_periodo','dispositivo_original'];
   const distancias = parsed.rows.map(r=>r.distancia_km).filter(v=>v!==null);
   const mediana = medianOf(distancias);
 
@@ -1499,6 +1506,7 @@ async function ejecutarImportacion(resultEl){
         litros_ypf: row.litros_ypf,
         zona_periodo: row.zona,
         modelo_periodo: row.modelo,
+        dispositivo_original: row.dispositivo_original,
         es_atipico: !!row.esAtipico,
         importacion_id: importacion.id,
       };
@@ -1514,10 +1522,10 @@ async function ejecutarImportacion(resultEl){
       }
     }
 
-    // Reconciliar vehiculos.region/label con el período MÁS RECIENTE que tenga
-    // ese dato, para cada vehículo tocado — así si un vehículo cambió de zona,
-    // "vehiculos" siempre queda mostrando la zona vigente, sin pisarla con
-    // cargas de meses viejos ni con datos vacíos.
+    // Reconciliar vehiculos.region/label/nombre_completo con el período MÁS
+    // RECIENTE que tenga ese dato, para cada vehículo tocado — así si un
+    // vehículo cambió de zona, "vehiculos" siempre queda mostrando la zona
+    // vigente, sin pisarla con cargas de meses viejos ni con datos vacíos.
     for(const dominio of vehiculosTocados){
       const { data: ultZona } = await state.sb.from('gps_reportes')
         .select('zona_periodo').eq('vehiculo_dominio', dominio).not('zona_periodo','is',null)
@@ -1525,9 +1533,13 @@ async function ejecutarImportacion(resultEl){
       const { data: ultModelo } = await state.sb.from('gps_reportes')
         .select('modelo_periodo').eq('vehiculo_dominio', dominio).not('modelo_periodo','is',null)
         .order('periodo', { ascending:false }).limit(1);
+      const { data: ultNombre } = await state.sb.from('gps_reportes')
+        .select('dispositivo_original').eq('vehiculo_dominio', dominio).not('dispositivo_original','is',null)
+        .order('periodo', { ascending:false }).limit(1);
       const patch = {};
       if(ultZona && ultZona.length) patch.region = ultZona[0].zona_periodo;
       if(ultModelo && ultModelo.length) patch.label = ultModelo[0].modelo_periodo;
+      if(ultNombre && ultNombre.length) patch.nombre_completo = ultNombre[0].dispositivo_original;
       if(Object.keys(patch).length) await state.sb.from('vehiculos').update(patch).eq('dominio', dominio);
     }
 
