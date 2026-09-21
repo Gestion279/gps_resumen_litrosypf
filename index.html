@@ -21,11 +21,14 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   :root{
-    --teal-700:#0f766e;
-    --teal-600:#0d9488;
-    --teal-500:#14b8a6;
-    --teal-50:#f0fdfa;
-    --navy-950:#0f172a;
+    /* Paleta pedida: navy → verde claro */
+    --p1:#1B4079; --p2:#4D7C8A; --p3:#7F9C96; --p4:#8FAD88; --p5:#C7DB94;
+
+    --teal-700:#142f5c;
+    --teal-600:#1B4079;
+    --teal-500:#2d5a94;
+    --teal-50:#eef1f6;
+    --navy-950:#132a4d;
     --navy-900:#152238;
     --navy-800:#1c2e4a;
     --slate-50:#f6f7f9;
@@ -40,13 +43,13 @@
     --red:#c0432f;
     --gray-mid:#8b93a3;
 
-    /* tintes de las tarjetas KPI (bg claro + color de ícono/valor) */
-    --kpi-blue-bg:#eaf2ff;   --kpi-blue-fg:#2f6fed;
-    --kpi-green-bg:#e9f9ef;  --kpi-green-fg:#22a55e;
-    --kpi-teal-bg:#e6fbf7;   --kpi-teal-fg:#0d9488;
-    --kpi-amber-bg:#fff2e2;  --kpi-amber-fg:#e08a1c;
-    --kpi-violet-bg:#f3ecfd; --kpi-violet-fg:#8b5cf6;
-    --kpi-rose-bg:#fdeef0;   --kpi-rose-fg:#e0577a;
+    /* tintes de las tarjetas KPI, derivados de la paleta de arriba */
+    --kpi-blue-bg:#D1D9E4;   --kpi-blue-fg:#1B4079;
+    --kpi-teal-bg:#DBE5E8;   --kpi-teal-fg:#3f6673;
+    --kpi-violet-bg:#E5EBEA; --kpi-violet-fg:#5b746e;
+    --kpi-green-bg:#E9EFE7;  --kpi-green-fg:#5f7a58;
+    --kpi-amber-bg:#F4F8EA;  --kpi-amber-fg:#78904a;
+    --kpi-rose-bg:#DCE3ED;   --kpi-rose-fg:#2d5a94;
 
     --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --font-mono: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
@@ -68,50 +71,17 @@
   button{font-family:inherit;font-size:inherit;cursor:pointer;}
   input,select{font-family:inherit;font-size:inherit;}
 
-  /* ---------- Layout shell ---------- */
-  #app{display:flex;min-height:100vh;}
-  .sidebar{
-    width:216px;flex:none;background:#fff;color:var(--slate-600);
-    display:flex;flex-direction:column;padding:20px 12px;border-right:1px solid var(--slate-200);
-  }
-  .sidebar .brand{display:flex;align-items:center;gap:10px;padding:0 8px 18px 8px;margin-bottom:10px;}
-  .sidebar .brand .pin{
-    width:34px;height:34px;border-radius:10px;background:var(--teal-600);color:#fff;
-    display:flex;align-items:center;justify-content:center;flex:none;
-  }
-  .sidebar .brand .pin svg{width:18px;height:18px;}
-  .sidebar .brand .name{font-weight:700;font-size:14.5px;color:var(--navy-950);letter-spacing:.1px;}
-  .sidebar .brand .sub{font-size:11px;color:var(--slate-400);margin-top:1px;}
-  .nav-item{
-    display:flex;align-items:center;gap:10px;padding:9px 10px;color:var(--slate-600);
-    text-decoration:none;font-size:13.5px;font-weight:600;border-radius:var(--radius-sm);
-    background:none;border:none;width:100%;text-align:left;margin-bottom:2px;
-  }
-  .nav-item .ic{
-    width:28px;height:28px;border-radius:8px;background:var(--slate-100);color:var(--slate-600);
-    display:flex;align-items:center;justify-content:center;flex:none;
-  }
-  .nav-item .ic svg{width:15px;height:15px;}
-  .nav-item:hover{background:var(--slate-50);color:var(--navy-950);}
-  .nav-item.active{background:var(--teal-50);color:var(--teal-700);}
-  .nav-item.active .ic{background:var(--teal-600);color:#fff;}
-  .sidebar-foot{margin-top:auto;padding:10px 8px 0 8px;border-top:1px solid var(--slate-100);}
-  .sidebar-foot button{
-    background:none;border:none;color:var(--slate-400);font-size:11.5px;padding:6px 0;text-align:left;width:100%;
-  }
-  .sidebar-foot button:hover{color:var(--navy-950);}
-
+  /* ---------- Layout shell (tabs arriba, sin sidebar) ---------- */
+  #app{display:flex;flex-direction:column;min-height:100vh;}
   .main{flex:1;min-width:0;display:flex;flex-direction:column;}
   .topbar{
-    padding:16px 26px;border-bottom:1px solid var(--slate-200);background:#fff;
+    padding:14px 26px;border-bottom:1px solid var(--slate-200);background:#fff;
     display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
   }
   .topbar-titles{display:flex;align-items:center;gap:10px;}
-  .topbar-titles .ic{
-    width:34px;height:34px;border-radius:10px;background:var(--teal-50);color:var(--teal-600);
-    display:flex;align-items:center;justify-content:center;flex:none;
+  .topbar-titles .pin{
+    width:36px;height:36px;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center;flex:none;
   }
-  .topbar-titles .ic svg{width:17px;height:17px;}
   .topbar h1{font-size:16.5px;margin:0;font-weight:700;color:var(--navy-950);}
   .topbar .meta{font-size:12px;color:var(--slate-400);}
   .topbar-actions{display:flex;align-items:center;gap:8px;}
@@ -121,26 +91,35 @@
   }
   .icon-btn:hover{background:var(--slate-50);}
   .icon-btn svg{width:16px;height:16px;}
-  .content{padding:22px 26px 90px 26px;flex:1;}
+  .content{padding:20px 26px 60px 26px;flex:1;}
 
-  /* ---------- Filters (pill selects with icon) ---------- */
-  .filters{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:20px;}
+  /* ---------- Tabs (reemplazan al sidebar) ---------- */
+  .tabbar{display:flex;gap:2px;background:#fff;border-bottom:1px solid var(--slate-200);padding:0 26px;overflow-x:auto;}
+  .tab-item{
+    padding:13px 16px;font-size:13.5px;font-weight:600;color:var(--slate-600);background:none;border:none;
+    border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap;
+  }
+  .tab-item:hover{color:var(--navy-950);}
+  .tab-item.active{color:var(--teal-600);border-bottom-color:var(--teal-600);}
+
+  /* ---------- Filters (botones rectangulares, estilo hoja de cálculo) ---------- */
+  .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;}
   .filter-pill{
     position:relative;display:flex;align-items:center;border:1px solid var(--slate-200);
-    border-radius:99px;background:#fff;padding:0 12px 0 10px;height:36px;
+    border-radius:var(--radius-sm);background:#fff;padding:0 12px;height:38px;
   }
-  .filter-pill svg{width:14px;height:14px;color:var(--slate-400);flex:none;}
   .filter-pill select{
-    border:none;background:transparent;padding:0 4px 0 8px;color:var(--slate-800);
-    min-width:118px;font-weight:500;appearance:none;-webkit-appearance:none;
+    border:none;background:transparent;padding:0;color:var(--slate-800);
+    min-width:120px;font-weight:600;font-size:13px;appearance:none;-webkit-appearance:none;
   }
   .filter-pill select:focus{outline:none;}
+  .filter-pill.active-filter{border-color:var(--teal-600);}
 
-  /* ---------- KPI cards ---------- */
-  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-bottom:24px;}
+  /* ---------- KPI cards: todas en una sola fila ---------- */
+  .kpi-grid{display:flex;flex-wrap:nowrap;gap:12px;margin-bottom:22px;overflow-x:auto;padding-bottom:4px;}
   .kpi-card{
-    border-radius:var(--radius);padding:16px 18px;position:relative;background:#fff;
-    box-shadow:var(--shadow-card);
+    border-radius:var(--radius);padding:14px 16px;position:relative;background:#fff;
+    box-shadow:var(--shadow-card);flex:1 0 150px;min-width:150px;
   }
   .kpi-card.tint .kpi-icon{background:rgba(255,255,255,.6);}
   .kpi-card .kpi-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
@@ -291,28 +270,14 @@
      RESPONSIVE — celular
      ========================================================================= */
   @media (max-width: 780px){
-    #app{flex-direction:column;}
-    .sidebar{
-      width:100%;flex-direction:row;align-items:center;padding:8px 10px;
-      border-right:none;border-bottom:1px solid var(--slate-200);
-      position:fixed;bottom:0;left:0;right:0;top:auto;z-index:50;
-      padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));
-    }
-    .sidebar .brand{display:none;}
-    .sidebar-foot{display:none;}
-    .nav-item{
-      flex-direction:column;gap:3px;font-size:10px;padding:5px 4px;flex:1;text-align:center;margin-bottom:0;
-    }
-    .nav-item .ic{margin:0 auto;}
-    .main{padding-bottom:64px;}
     .content{padding:16px 14px 30px 14px;}
     .topbar{padding:14px 16px;position:sticky;top:0;z-index:10;padding-top:calc(14px + env(safe-area-inset-top,0px));}
     .topbar h1{font-size:15px;}
+    .tabbar{padding:0 16px;position:sticky;top:57px;z-index:9;}
     .filters{gap:7px;}
-    .filter-pill select{min-width:0;width:88px;}
-    .kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
-    .kpi-card{padding:13px 14px;}
-    .kpi-card .value{font-size:18px;}
+    .filter-pill select{min-width:0;width:110px;}
+    .kpi-card{padding:12px 13px;flex-basis:130px;min-width:130px;}
+    .kpi-card .value{font-size:17px;}
     .search-box input{width:120px;}
     .config-box{padding:26px;}
   }
@@ -359,6 +324,9 @@ const ICN = {
   trendDown: '<path d="M4 9l6 6 4-4 6 7"/><path d="M15 18h5v-5"/>',
   sort: '<path d="M8 9l4-5 4 5"/><path d="M16 15l-4 5-4-5"/>',
   install: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/>',
+  close: '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
+  plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  fix: '<circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/>',
 };
 function icon(name, cls){
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${cls||''}">${ICN[name]||''}</svg>`;
@@ -833,37 +801,34 @@ function render(){
     return;
   }
   app.innerHTML = `
-    <div class="sidebar">
-      <div class="brand"><span class="pin"><img src="icon-192.png" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></span><div><div class="name">Consumos de vehículos</div><div class="sub">Flota · Base Vehículos</div></div></div>
-      ${navItem('resumen','home','Resumen GPS')}
-      ${navItem('vehiculos','truck','Vehículos')}
-      ${navItem('historico','chart','Histórico')}
-      ${navItem('importar','upload','Importar Reporte')}
-      <div class="sidebar-foot">
-        <button id="btn-install" style="display:none">${icon('install')} Instalar app</button>
-        <button id="btn-config">Configuración de conexión</button>
-      </div>
-    </div>
     <div class="main">
       <div class="topbar">
         <div class="topbar-titles">
-          <span class="ic">${icon(viewIcon(state.view))}</span>
-          <div><h1>${viewTitle(state.view)}</h1><div class="meta" id="topbar-meta">${viewSubtitle(state.view)}</div></div>
+          <span class="pin"><img src="icon-192.png" alt="" style="width:100%;height:100%;object-fit:cover"></span>
+          <div><h1>Consumos de vehículos</h1><div class="meta">Flota · Base Vehículos</div></div>
         </div>
         <div class="topbar-actions" id="topbar-actions"></div>
+      </div>
+      <div class="tabbar">
+        ${tabItem('resumen','Resumen GPS')}
+        ${tabItem('historico','Histórico')}
       </div>
       <div class="content" id="content">Cargando…</div>
     </div>
   `;
-  document.getElementById('btn-config').onclick = () => { clearConfig(); state.sb=null; render(); };
-  document.querySelectorAll('.nav-item[data-view]').forEach(b=>{
+  document.querySelectorAll('.tab-item[data-view]').forEach(b=>{
     b.onclick = () => { state.view = b.dataset.view; state._vehiculoSel = null; render(); };
   });
-  bindInstallButton();
   document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-primary" id="btn-cargar-planilla">${icon('upload')} Cargar planilla</button>
+    <button class="icon-btn" id="btn-corregir" title="Corregir nombres de vehículos (zona/modelo)">${icon('fix')}</button>
     <button class="icon-btn" id="btn-refresh" title="Actualizar">${icon('refresh')}</button>
     <button class="icon-btn" id="btn-dots" title="Más opciones">${icon('dots')}</button>
+    <button class="icon-btn" id="btn-install-icon" style="display:none" title="Instalar app">${icon('install')}</button>
   `;
+  bindInstallButton();
+  document.getElementById('btn-cargar-planilla').onclick = () => abrirModalImportar();
+  document.getElementById('btn-corregir').onclick = () => corregirNombresExistentes();
   document.getElementById('btn-refresh').onclick = () => renderView();
   document.getElementById('btn-dots').onclick = () => {
     const proceed = confirm('¿Cambiar la configuración de conexión a Supabase?');
@@ -871,18 +836,9 @@ function render(){
   };
   renderView();
 }
-function navItem(view, iconName, label){
+function tabItem(view, label){
   const active = state.view===view ? 'active' : '';
-  return `<button class="nav-item ${active}" data-view="${view}"><span class="ic">${icon(iconName)}</span><span>${label}</span></button>`;
-}
-function viewTitle(v){
-  return { resumen:'Resumen GPS', vehiculos:'Vehículos', historico:'Histórico', importar:'Importar Reporte' }[v] || '';
-}
-function viewIcon(v){
-  return { resumen:'home', vehiculos:'truck', historico:'chart', importar:'upload' }[v] || 'home';
-}
-function viewSubtitle(v){
-  return { resumen:'Indicadores generales y detalle por vehículo', vehiculos:'Ficha y evolución de cada unidad', historico:'Evolución mensual de la flota', importar:'Cargar y conciliar reportes Excel' }[v] || '';
+  return `<button class="tab-item ${active}" data-view="${view}">${label}</button>`;
 }
 
 function renderConfigScreen(){
@@ -929,10 +885,9 @@ function bindConfigScreen(){
 async function renderView(){
   const content = document.getElementById('content');
   try{
+    if(state._vehiculoSel){ await renderVehiculoDetalle(content, state._vehiculoSel); return; }
     if(state.view === 'resumen') await renderResumen(content);
-    else if(state.view === 'vehiculos') await renderVehiculos(content);
     else if(state.view === 'historico') await renderHistorico(content);
-    else if(state.view === 'importar') await renderImportar(content);
   }catch(e){
     console.error(e);
     content.innerHTML = `<div class="panel"><div class="panel-body">
@@ -951,21 +906,13 @@ function filtersBar(opts, current){
       ${opts.periodos.map(p=>`<option value="${p.periodo}" ${current.periodo===p.periodo?'selected':''}>${esc(p.periodo_label)}</option>`).join('')}
     </select></div>
     <div class="filter-pill">${icon('car')}<select id="f-vehiculo">
-      <option value="">Todos los vehículos</option>
-      ${opts.vehiculos.map(v=>`<option value="${v.dominio}" ${current.vehiculo===v.dominio?'selected':''}>${esc(v.dominio)}</option>`).join('')}
-    </select></div>
-    <div class="filter-pill">${icon('tag')}<select id="f-modelo">
-      <option value="">Todos los modelos</option>
-      ${opts.modelos.map(m=>`<option value="${esc(m)}" ${current.modelo===m?'selected':''}>${esc(m)}</option>`).join('')}
-    </select></div>
-    <div class="filter-pill">${icon('mapPin')}<select id="f-zona">
-      <option value="">Todas las zonas</option>
-      ${opts.zonas.map(z=>`<option value="${esc(z)}" ${current.zona===z?'selected':''}>${esc(z)}</option>`).join('')}
+      <option value="">Todos los dispositivos</option>
+      ${opts.vehiculos.map(v=>`<option value="${v.dominio}" ${current.vehiculo===v.dominio?'selected':''}>${esc(nombreCompleto(v.dominio, v.label))}</option>`).join('')}
     </select></div>
   </div>`;
 }
 function bindFiltersBar(onChange){
-  ['f-periodo','f-vehiculo','f-modelo','f-zona'].forEach(id=>{
+  ['f-periodo','f-vehiculo'].forEach(id=>{
     document.getElementById(id).onchange = (e) => {
       const key = id.replace('f-','');
       state.filters[key] = e.target.value;
@@ -1097,7 +1044,7 @@ function nombreCompleto(patente, modelo){
 }
 function bindTablaReportesRows(){
   document.querySelectorAll('#tabla-detalle tr.row-click').forEach(tr=>{
-    tr.onclick = () => { state.view='vehiculos'; state._vehiculoSel = tr.dataset.dominio; render(); };
+    tr.onclick = () => { state._vehiculoSel = tr.dataset.dominio; render(); };
   });
 }
 function exportarCSV(rows){
@@ -1117,50 +1064,6 @@ function exportarCSV(rows){
   a.href = url; a.download = `gps_detalle_${state.filters.periodo||'todos'}.csv`;
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
-}
-
-/* ---------- VEHÍCULOS ---------- */
-async function renderVehiculos(content){
-  content.innerHTML = `<div class="empty"><span class="spin"></span> Cargando vehículos…</div>`;
-  const vehiculos = await sbSelect('vehiculos', '*');
-  const detalle = state._vehiculoSel;
-  if(detalle){
-    return renderVehiculoDetalle(content, detalle);
-  }
-  vehiculos.sort((a,b)=>a.dominio.localeCompare(b.dominio));
-  content.innerHTML = `
-    <div class="panel">
-      <div class="panel-head">
-        <div class="panel-head-left"><span class="ic">${icon('truck')}</span><h2>Todos los vehículos</h2></div>
-        <div class="panel-head-actions">
-          <div class="search-box">${icon('search')}<input id="v-search" placeholder="Buscar dominio, modelo o zona…"></div>
-          <button class="btn btn-secondary" id="btn-corregir-nombres" title="Vuelve a separar zona/modelo en registros viejos usando la lista de zonas actual">${icon('refresh')} Corregir nombres</button>
-        </div>
-      </div>
-      <div class="panel-body table-wrap">
-        <table>
-          <thead><tr><th>Dispositivo</th><th>Zona</th><th></th></tr></thead>
-          <tbody id="v-tbody">
-            ${vehiculos.map(v=>filaVehiculo(v)).join('')}
-          </tbody>
-        </table>
-        ${vehiculos.length? '' : '<div class="empty">Todavía no hay vehículos cargados. Importá un reporte para crearlos automáticamente.</div>'}
-      </div>
-    </div>
-  `;
-  const bindRows = () => {
-    document.querySelectorAll('#v-tbody tr.row-click').forEach(tr=>{
-      tr.onclick = () => { state._vehiculoSel = tr.dataset.id; renderView(); };
-    });
-  };
-  bindRows();
-  document.getElementById('v-search').oninput = (e) => {
-    const q = e.target.value.toLowerCase();
-    const filtered = vehiculos.filter(v => (v.dominio+' '+(v.label||'')+' '+(v.region||'')).toLowerCase().includes(q));
-    document.getElementById('v-tbody').innerHTML = filtered.map(v=>filaVehiculo(v)).join('');
-    bindRows();
-  };
-  document.getElementById('btn-corregir-nombres').onclick = () => corregirNombresExistentes();
 }
 
 // Re-separa zona/modelo en registros ya guardados, usando la lista de zonas
@@ -1206,13 +1109,6 @@ async function corregirNombresExistentes(){
   }
   toast(`Corregidos: ${corregidosVehiculos} vehículos, ${corregidosReportes} reportes.`, 'success');
   renderView();
-}
-function filaVehiculo(v){
-  return `<tr class="row-click" data-id="${esc(v.dominio)}">
-    <td><strong>${esc(nombreCompleto(v.dominio, v.label))}</strong></td>
-    <td>${v.region? `<span class="pill-zona">${esc(v.region)}</span>` : '<span class="muted">sin asignar</span>'}</td>
-    <td class="row-chevron">${icon('chevronRight')}</td>
-  </tr>`;
 }
 async function renderVehiculoDetalle(content, vehiculoDominio){
   const [vehiculo] = await sbSelect('vehiculos', '*', { dominio: vehiculoDominio });
@@ -1345,26 +1241,29 @@ async function renderHistorico(content){
   }
 }
 
-/* ---------- IMPORTAR REPORTE ---------- */
-async function renderImportar(content){
-  content.innerHTML = `
-    <div class="panel">
-      <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('upload')}</span><h2>Cargar archivo Excel</h2></div></div>
-      <div class="panel-body">
-        <div class="dropzone" id="dz">
-          <div class="icon">${icon('upload')}</div>
-          <div><strong>Arrastrá el archivo acá</strong> o hacé clic para elegirlo</div>
-          <div class="muted" style="margin-top:4px;font-size:12px">Acepta cualquier formato de reporte GPS, siempre que tenga los encabezados: Dispositivo, Fecha de inicio, Horas motor, Horas en ralentí, Distancia, Velocidad máxima, Litros YPF</div>
-          <input type="file" id="file-input" accept=".xlsx,.xls" />
-        </div>
-      </div>
+/* ---------- IMPORTAR REPORTE (modal, se abre desde "Cargar planilla") ---------- */
+function abrirModalImportar(){
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal" style="width:640px;max-width:94vw;max-height:88vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3 style="margin:0;display:flex;align-items:center;gap:8px">${icon('upload')} Cargar planilla</h3>
+      <button class="icon-btn" id="import-modal-close">${icon('close')}</button>
+    </div>
+    <div class="dropzone" id="dz">
+      <div class="icon">${icon('upload')}</div>
+      <div><strong>Arrastrá el archivo acá</strong> o hacé clic para elegirlo</div>
+      <div class="muted" style="margin-top:4px;font-size:12px">Acepta cualquier formato de reporte GPS, siempre que tenga los encabezados: Dispositivo, Fecha de inicio, Horas motor, Horas en ralentí, Distancia, Velocidad máxima, Litros YPF</div>
+      <input type="file" id="file-input" accept=".xlsx,.xls" />
     </div>
     <div id="import-result"></div>
-    <div class="panel">
-      <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('calendar')}</span><h2>Cargas anteriores</h2></div></div>
-      <div class="panel-body table-wrap" id="historial-cargas"><div class="empty"><span class="spin"></span></div></div>
-    </div>
-  `;
+    <div class="section-title">Cargas anteriores</div>
+    <div class="table-wrap" id="historial-cargas"><div class="empty"><span class="spin"></span></div></div>
+  </div>`;
+  document.body.appendChild(bg);
+  document.getElementById('import-modal-close').onclick = () => bg.remove();
+  bg.addEventListener('click', (e) => { if(e.target === bg) bg.remove(); });
+
   const dz = document.getElementById('dz');
   const fileInput = document.getElementById('file-input');
   dz.onclick = () => fileInput.click();
@@ -1378,6 +1277,7 @@ async function renderImportar(content){
 
 async function loadHistorialCargas(){
   const el = document.getElementById('historial-cargas');
+  if(!el) return;
   try{
     const { data, error } = await state.sb.from('gps_importaciones').select('*').order('fecha_carga', { ascending:false }).limit(20);
     if(error) throw error;
@@ -1682,7 +1582,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 window.addEventListener('appinstalled', () => { deferredInstallPrompt = null; });
 function bindInstallButton(){
-  const btn = document.getElementById('btn-install');
+  const btn = document.getElementById('btn-install-icon');
   if(!btn) return;
   if(deferredInstallPrompt) btn.style.display = 'flex';
   btn.onclick = async () => {
