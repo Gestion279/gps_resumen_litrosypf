@@ -1459,14 +1459,24 @@ async function renderResumen(content){
   content.innerHTML = `<div class="empty"><span class="spin"></span> Cargando indicadores…</div>`;
   const opts = await fetchFilterOptions();
   state._optsCache = opts;
-  const rows = await fetchReportesFiltrados(state.filters);
+  const todas = await fetchReportesFiltrados(state.filters);
+  // Igual que en Km, Litros e Indicadores: los registros con más de 20.000 km
+  // en un mes son errores de carga del GPS y no entran en los totales ni en
+  // la tabla. Se listan en el aviso para corregirlos en Supabase.
+  const { validas: rows, sospechosas } = marcarSospechosos(todas);
   const k = agregarKPIs(rows);
+  // El vehículo existió en el período aunque su registro tenga km erróneos:
+  // se sigue contando en "Vehículos".
+  k.vehiculosCount = new Set(todas.map(r=>r.vehiculo_dominio)).size;
 
   // comparación con el período anterior (solo si hay EXACTAMENTE un período elegido)
   let kPrev = null;
   if(state.filters.periodo && state.filters.periodo.length===1){
-    const prevRows = await fetchReportesFiltrados({ ...state.filters, periodo:[periodoAnterior(state.filters.periodo[0])] });
-    if(prevRows.length) kPrev = agregarKPIs(prevRows);
+    const prevTodas = await fetchReportesFiltrados({ ...state.filters, periodo:[periodoAnterior(state.filters.periodo[0])] });
+    if(prevTodas.length){
+      kPrev = agregarKPIs(marcarSospechosos(prevTodas).validas);
+      kPrev.vehiculosCount = new Set(prevTodas.map(r=>r.vehiculo_dominio)).size;
+    }
   }
 
   // vehículos que reportaron en el período más reciente disponible = "activos"
@@ -1483,6 +1493,7 @@ async function renderResumen(content){
 
   content.innerHTML = `
     ${filtersBar(opts, state.filters)}
+    ${warningSospechososHtml(sospechosas)}
     <div class="kpi-grid">
       ${kpiCard({label:'Vehículos', dec:0, unit:'', iconName:'truck', tint:'blue', curr:k.vehiculosCount, prev:kPrev?.vehiculosCount, staticCaption:'Total de vehículos en el período'})}
       ${kpiCard({label:'Km recorridos', dec:0, unit:'km', iconName:'car', tint:'teal', curr:k.kmTotal, prev:kPrev?.kmTotal})}
