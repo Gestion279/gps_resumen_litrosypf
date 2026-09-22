@@ -194,6 +194,15 @@
   .row-chevron svg{width:15px;height:15px;}
   .device-name{font-weight:600;color:var(--navy-950);}
 
+  /* ---------- Pivot tables (Km recorridos / Litros consumidos) ---------- */
+  table.pivot-table td.sticky-col, table.pivot-table th.sticky-col{
+    position:sticky;left:0;background:#fff;z-index:2;box-shadow:1px 0 0 var(--slate-100);
+  }
+  table.pivot-table tr.pivot-total-row td{font-weight:700;background:var(--slate-50);color:var(--navy-950);}
+  table.pivot-table tr.pivot-total-row td.sticky-col{background:var(--slate-50);}
+  table.pivot-table th.sticky-col{z-index:3;}
+  table.pivot-table td, table.pivot-table th{white-space:nowrap;}
+
   /* ---------- Pills / Badges ---------- */
   .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:700;}
   .badge.nuevo{background:#e4f5ea;color:var(--green);}
@@ -828,6 +837,11 @@ function render(){
         </div>
         <div class="topbar-actions" id="topbar-actions"></div>
       </div>
+      <div class="tabbar">
+        ${tabItem('resumen','General')}
+        ${tabItem('km','Km recorridos')}
+        ${tabItem('litros','Litros consumidos')}
+      </div>
       <div class="content" id="content">Cargando…</div>
     </div>
   `;
@@ -900,6 +914,8 @@ async function renderView(){
   try{
     if(state._vehiculoSel){ await renderVehiculoDetalle(content, state._vehiculoSel); return; }
     if(state.view === 'resumen') await renderResumen(content);
+    else if(state.view === 'km') await renderKmRecorridos(content);
+    else if(state.view === 'litros') await renderLitrosConsumidos(content);
     else if(state.view === 'historico') await renderHistorico(content);
   }catch(e){
     console.error(e);
@@ -1001,6 +1017,188 @@ function periodoAnterior(key){
   let [y,m] = key.split('-').map(Number);
   m -= 1; if(m<1){ m=12; y-=1; }
   return `${y}-${String(m).padStart(2,'0')}`;
+}
+
+/* =========================================================================
+   PIVOT — tablas "Dispositivo x Mes" (Km recorridos / Litros consumidos)
+   ========================================================================= */
+const MESES_ABBR = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function periodoLabelCorta(p){
+  if(!p) return '';
+  const [y,m] = p.split('-');
+  return `${MESES_ABBR[parseInt(m,10)-1]}.-${y}`;
+}
+// Agrupa "rows" por dispositivo y arma, para cada uno, el total general y el
+// valor por período, usando la función "aggregate" que se le pase (sumar km,
+// sumar litros, o litros/100km) — así se reutiliza la misma estructura para
+// las tres tablas tipo Excel dinámico.
+function buildPivot(rows, opts){
+  const aggregate = opts.aggregate;
+  const periodos = [...new Set(rows.map(r=>r.periodo).filter(Boolean))].sort();
+  const byDevice = new Map();
+  rows.forEach(r=>{
+    const key = r.vehiculo_dominio || r.dispositivo_original || '—';
+    if(!byDevice.has(key)) byDevice.set(key, []);
+    byDevice.get(key).push(r);
+  });
+  const devices = [...byDevice.entries()].map(([dominio, drows])=>{
+    const zona = drows.find(r=>r.zona_periodo)?.zona_periodo || drows[0]?.vehiculos?.region;
+    const modelo = drows.find(r=>r.modelo_periodo)?.modelo_periodo || drows[0]?.vehiculos?.label;
+    const nombre = drows.find(r=>r.dispositivo_original)?.dispositivo_original || nombreCompletoConZona(dominio, modelo, zona);
+    const porPeriodo = {};
+    periodos.forEach(p=>{
+      const subset = drows.filter(r=>r.periodo===p);
+      porPeriodo[p] = subset.length ? aggregate(subset) : null;
+    });
+    return { dominio, nombre, total: aggregate(drows), porPeriodo };
+  });
+  devices.sort((a,b)=> (b.total||0)-(a.total||0));
+  const totalPorPeriodo = {};
+  periodos.forEach(p=>{ totalPorPeriodo[p] = aggregate(rows.filter(r=>r.periodo===p)); });
+  return { periodos, devices, totalGeneral: aggregate(rows), totalPorPeriodo };
+}
+function pivotTableHtml(pivot, {decimales=0, searchQuery=''}={}){
+  const q = (searchQuery||'').toLowerCase();
+  const filtered = q ? pivot.devices.filter(d=>(d.nombre||d.dominio||'').toLowerCase().includes(q)) : pivot.devices;
+  return `<table class="pivot-table">
+    <thead><tr>
+      <th class="sticky-col">Dispositivo</th>
+      <th class="num">Total</th>
+      ${pivot.periodos.map(p=>`<th class="num">${esc(periodoLabelCorta(p))}</th>`).join('')}
+    </tr></thead>
+    <tbody>
+      <tr class="pivot-total-row">
+        <td class="sticky-col">Total</td>
+        <td class="num">${fmtNum(pivot.totalGeneral,decimales)}</td>
+        ${pivot.periodos.map(p=>`<td class="num">${fmtNum(pivot.totalPorPeriodo[p],decimales)}</td>`).join('')}
+      </tr>
+      ${filtered.length ? filtered.map(d=>`<tr>
+        <td class="sticky-col device-name">${esc(d.nombre||d.dominio)}</td>
+        <td class="num">${fmtNum(d.total,decimales)}</td>
+        ${pivot.periodos.map(p=>`<td class="num">${(d.porPeriodo[p]!==null&&d.porPeriodo[p]!==undefined)?fmtNum(d.porPeriodo[p],decimales):'—'}</td>`).join('')}
+      </tr>`).join('') : `<tr><td class="sticky-col" colspan="${2+pivot.periodos.length}"><div class="empty">Sin resultados.</div></td></tr>`}
+    </tbody>
+  </table>`;
+}
+function exportarPivotCSV(pivot, filename, dec){
+  const headers = ['Dispositivo','Total', ...pivot.periodos.map(periodoLabelCorta)];
+  const lines = [headers.join(';')];
+  lines.push(['Total', fmtNum(pivot.totalGeneral,dec), ...pivot.periodos.map(p=>fmtNum(pivot.totalPorPeriodo[p],dec))].join(';'));
+  pivot.devices.forEach(d=>{
+    lines.push([
+      d.nombre||d.dominio, fmtNum(d.total,dec),
+      ...pivot.periodos.map(p=>(d.porPeriodo[p]!==null&&d.porPeriodo[p]!==undefined)?fmtNum(d.porPeriodo[p],dec):'')
+    ].map(v=>String(v).replace(/;/g,',')).join(';'));
+  });
+  const csv = '\uFEFF' + lines.join('\n');
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `${filename}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* ---------- KM RECORRIDOS ---------- */
+async function renderKmRecorridos(content){
+  content.innerHTML = `<div class="empty"><span class="spin"></span> Cargando…</div>`;
+  const opts = await fetchFilterOptions();
+  state._optsCache = opts;
+  const rows = await fetchReportesFiltrados(state.filters);
+  const pivot = buildPivot(rows, { aggregate: rs => sumField(rs,'distancia_km') });
+
+  content.innerHTML = `
+    ${filtersBar(opts, state.filters)}
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic">${icon('car')}</span><div><h2>Km recorridos</h2><div class="sub">Kilómetros por dispositivo y mes</div></div></div>
+        <div class="panel-head-actions">
+          <div class="search-box">${icon('search')}<input id="km-search" placeholder="Buscar vehículo…"></div>
+          <button class="btn btn-secondary" id="km-export">${icon('download')} Exportar</button>
+        </div>
+      </div>
+      <div class="panel-body table-wrap" id="km-tabla">
+        ${pivot.devices.length ? pivotTableHtml(pivot,{decimales:0}) : `<div class="empty">No hay datos para estos filtros todavía. Cargá un reporte desde "Cargar planilla".</div>`}
+      </div>
+    </div>
+  `;
+  bindFiltersBar(()=>renderView());
+  if(pivot.devices.length){
+    document.getElementById('km-search').oninput = (e)=>{
+      document.getElementById('km-tabla').innerHTML = pivotTableHtml(pivot,{decimales:0, searchQuery:e.target.value});
+    };
+    document.getElementById('km-export').onclick = () => exportarPivotCSV(pivot, 'km_recorridos', 0);
+  }
+}
+
+/* ---------- LITROS CONSUMIDOS ---------- */
+async function renderLitrosConsumidos(content){
+  content.innerHTML = `<div class="empty"><span class="spin"></span> Cargando…</div>`;
+  const opts = await fetchFilterOptions();
+  state._optsCache = opts;
+  const rows = await fetchReportesFiltrados(state.filters);
+  const pivotLitros = buildPivot(rows, { aggregate: rs => sumField(rs,'litros_ypf') });
+  const pivotL100 = buildPivot(rows, { aggregate: rs => {
+    const km = sumField(rs,'distancia_km'), li = sumField(rs,'litros_ypf');
+    return km ? li/(km/100) : null;
+  }});
+
+  content.innerHTML = `
+    ${filtersBar(opts, state.filters)}
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic">${icon('droplet')}</span><div><h2>Litros cargados por mes</h2><div class="sub">Total de la flota</div></div></div>
+      </div>
+      <div class="panel-body"><div style="height:280px"><canvas id="chart-litros"></canvas></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic">${icon('droplet')}</span><div><h2>Litros consumidos</h2><div class="sub">Por dispositivo y mes</div></div></div>
+        <div class="panel-head-actions">
+          <div class="search-box">${icon('search')}<input id="litros-search" placeholder="Buscar vehículo…"></div>
+          <button class="btn btn-secondary" id="litros-export">${icon('download')} Exportar</button>
+        </div>
+      </div>
+      <div class="panel-body table-wrap" id="litros-tabla">
+        ${pivotLitros.devices.length ? pivotTableHtml(pivotLitros,{decimales:1}) : `<div class="empty">No hay datos para estos filtros todavía. Cargá un reporte desde "Cargar planilla".</div>`}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic">${icon('gauge')}</span><div><h2>Litros cada 100 km</h2><div class="sub">Por dispositivo y mes</div></div></div>
+      </div>
+      <div class="panel-body table-wrap" id="l100-tabla">
+        ${pivotL100.devices.length ? pivotTableHtml(pivotL100,{decimales:2}) : `<div class="empty">No hay datos para estos filtros todavía.</div>`}
+      </div>
+    </div>
+  `;
+  bindFiltersBar(()=>renderView());
+  renderChartLitros(pivotLitros);
+  if(pivotLitros.devices.length){
+    document.getElementById('litros-search').oninput = (e)=>{
+      const q = e.target.value;
+      document.getElementById('litros-tabla').innerHTML = pivotTableHtml(pivotLitros,{decimales:1, searchQuery:q});
+      document.getElementById('l100-tabla').innerHTML = pivotTableHtml(pivotL100,{decimales:2, searchQuery:q});
+    };
+    document.getElementById('litros-export').onclick = () => exportarPivotCSV(pivotLitros, 'litros_consumidos', 1);
+  }
+}
+function renderChartLitros(pivot){
+  const ctx = document.getElementById('chart-litros');
+  if(!ctx) return;
+  if(state._chartLitros){ state._chartLitros.destroy(); state._chartLitros = null; }
+  state._chartLitros = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: pivot.periodos.map(periodoLabelCorta),
+      datasets:[{ label:'Litros cargados', data: pivot.periodos.map(p=>pivot.totalPorPeriodo[p]||0), backgroundColor:'#20b5a2', borderRadius:4 }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{ y:{ beginAtZero:true } }
+    }
+  });
 }
 
 /* ---------- RESUMEN GPS ---------- */
