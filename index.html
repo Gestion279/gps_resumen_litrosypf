@@ -361,6 +361,7 @@ const ICN = {
   close: '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
   plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
   fix: '<circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/>',
+  alert: '<path d="M12 3.2 22 20H2z"/><path d="M12 9.3v5"/><circle cx="12" cy="17.3" r="0.9" fill="currentColor" stroke="none"/>',
 };
 function icon(name, cls){
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${cls||''}">${ICN[name]||''}</svg>`;
@@ -1022,6 +1023,47 @@ function periodoAnterior(key){
 /* =========================================================================
    PIVOT — tablas "Dispositivo x Mes" (Km recorridos / Litros consumidos)
    ========================================================================= */
+// Ningún vehículo de la flota recorre esto en un mes real (la mayoría ni
+// llega a 10.000 km) — cualquier registro por encima queda claramente marcado
+// como un error de carga (dígito de más, unidad equivocada, etc.). Se separa
+// de los totales para no ensuciar los KPIs, pero NUNCA se borra ni se toca
+// en Supabase: solo se avisa para que se corrija en el origen.
+const MAX_KM_MENSUAL = 20000;
+function marcarSospechosos(rows){
+  const esSospechoso = r => r.distancia_km!==null && r.distancia_km!==undefined && r.distancia_km > MAX_KM_MENSUAL;
+  return {
+    validas: rows.filter(r => !esSospechoso(r)),
+    sospechosas: rows.filter(esSospechoso),
+  };
+}
+function warningSospechososHtml(sospechosas){
+  if(!sospechosas.length) return '';
+  const ordenadas = [...sospechosas].sort((a,b)=> (b.distancia_km||0)-(a.distancia_km||0));
+  return `<div class="panel" style="border-color:#f0cec7">
+    <div class="panel-body" style="padding-top:18px">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <span class="warn-icon">${icon('alert')}</span>
+        <div style="flex:1;min-width:0">
+          <strong style="color:var(--red)">${sospechosas.length} registro(s) excluido(s) de los totales por km mensual improbable</strong>
+          <p class="muted" style="margin:6px 0 10px 0">
+            Se excluyeron de esta hoja los registros con más de ${fmtNum(MAX_KM_MENSUAL,0)} km en un solo mes —
+            un valor así de alto solo puede ser un error de carga. No se modificó nada en Supabase:
+            revisá y corregí estas filas en la tabla <code>gps_reportes</code>.
+          </p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Dispositivo</th><th>Período</th><th class="num">Km cargados</th></tr></thead>
+            <tbody>${ordenadas.map(r=>`<tr>
+              <td>${esc(r.dispositivo_original || r.vehiculo_dominio || '—')}</td>
+              <td>${esc(r.periodo_label || r.periodo || '—')}</td>
+              <td class="num">${fmtNum(r.distancia_km,0)}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 const MESES_ABBR = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function periodoLabelCorta(p){
   if(!p) return '';
@@ -1110,10 +1152,12 @@ async function renderKmRecorridos(content){
   const opts = await fetchFilterOptions();
   state._optsCache = opts;
   const rows = await fetchReportesFiltrados(state.filters);
-  const pivot = buildPivot(rows, { aggregate: rs => sumField(rs,'distancia_km') });
+  const { validas, sospechosas } = marcarSospechosos(rows);
+  const pivot = buildPivot(validas, { aggregate: rs => sumField(rs,'distancia_km') });
 
   content.innerHTML = `
     ${filtersBar(opts, state.filters)}
+    ${warningSospechososHtml(sospechosas)}
     <div class="panel">
       <div class="panel-head">
         <div class="panel-head-left"><span class="ic">${icon('car')}</span><div><h2>Km recorridos</h2><div class="sub">Kilómetros por dispositivo y mes</div></div></div>
@@ -1142,14 +1186,16 @@ async function renderLitrosConsumidos(content){
   const opts = await fetchFilterOptions();
   state._optsCache = opts;
   const rows = await fetchReportesFiltrados(state.filters);
-  const pivotLitros = buildPivot(rows, { aggregate: rs => sumField(rs,'litros_ypf') });
-  const pivotL100 = buildPivot(rows, { aggregate: rs => {
+  const { validas, sospechosas } = marcarSospechosos(rows);
+  const pivotLitros = buildPivot(validas, { aggregate: rs => sumField(rs,'litros_ypf') });
+  const pivotL100 = buildPivot(validas, { aggregate: rs => {
     const km = sumField(rs,'distancia_km'), li = sumField(rs,'litros_ypf');
     return km ? li/(km/100) : null;
   }});
 
   content.innerHTML = `
     ${filtersBar(opts, state.filters)}
+    ${warningSospechososHtml(sospechosas)}
     <div class="panel">
       <div class="panel-head">
         <div class="panel-head-left"><span class="ic">${icon('droplet')}</span><div><h2>Litros cargados por mes</h2><div class="sub">Total de la flota</div></div></div>
