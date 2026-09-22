@@ -1035,22 +1035,27 @@ function periodoLabelCorta(p){
 function buildPivot(rows, opts){
   const aggregate = opts.aggregate;
   const periodos = [...new Set(rows.map(r=>r.periodo).filter(Boolean))].sort();
+  // Se agrupa por el texto EXACTO de "Dispositivo" tal como se cargó cada
+  // reporte (dispositivo_original) — igual que el filtro de dispositivos y
+  // que la tabla "Detalle por vehículo" de la hoja General. Nunca se agrupa
+  // por el vehículo/patente subyacente: si una unidad cambió de zona (ej.
+  // "AF220RZ PARTNER REDES" -> "AF220RZ PARTNER CORDOBA"), cada nombre debe
+  // quedar como una fila separada, respetando la carga real en Supabase.
   const byDevice = new Map();
   rows.forEach(r=>{
-    const key = r.vehiculo_dominio || r.dispositivo_original || '—';
+    const zona = r.zona_periodo || r.vehiculos?.region;
+    const modelo = r.modelo_periodo || r.vehiculos?.label;
+    const key = r.dispositivo_original || nombreCompletoConZona(r.vehiculo_dominio, modelo, zona) || r.vehiculo_dominio || '—';
     if(!byDevice.has(key)) byDevice.set(key, []);
     byDevice.get(key).push(r);
   });
-  const devices = [...byDevice.entries()].map(([dominio, drows])=>{
-    const zona = drows.find(r=>r.zona_periodo)?.zona_periodo || drows[0]?.vehiculos?.region;
-    const modelo = drows.find(r=>r.modelo_periodo)?.modelo_periodo || drows[0]?.vehiculos?.label;
-    const nombre = drows.find(r=>r.dispositivo_original)?.dispositivo_original || nombreCompletoConZona(dominio, modelo, zona);
+  const devices = [...byDevice.entries()].map(([nombre, drows])=>{
     const porPeriodo = {};
     periodos.forEach(p=>{
       const subset = drows.filter(r=>r.periodo===p);
       porPeriodo[p] = subset.length ? aggregate(subset) : null;
     });
-    return { dominio, nombre, total: aggregate(drows), porPeriodo };
+    return { dominio: drows[0]?.vehiculo_dominio || nombre, nombre, total: aggregate(drows), porPeriodo };
   });
   devices.sort((a,b)=> (b.total||0)-(a.total||0));
   const totalPorPeriodo = {};
