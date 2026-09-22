@@ -490,10 +490,36 @@ function detectarEncabezados(rows){
   return mejor.matches >= 2 ? mejor : null; // dispositivo + al menos 1 campo más
 }
 
-// El identificador del vehículo ya no se parsea en patente/modelo/zona: se usa
-// el texto completo de "Dispositivo" tal cual viene en el reporte (ver parseExcel).
+// El TEXTO que se muestra siempre es "Dispositivo" tal cual viene en el
+// reporte (dispositivo_original) — eso nunca se toca. Pero para AGRUPAR el
+// historial de un mismo vehículo hace falta una clave estable: si el texto
+// completo cambiara de un período a otro (ej. porque cambió de zona:
+// "AF220RZ PARTNER REDES" -> "AF220RZ PARTNER CORDOBA"), usar el texto
+// entero como clave partiría al vehículo en dos. Por eso se extrae SOLO la
+// patente (si se puede reconocer) como clave interna; si no se reconoce
+// ninguna, se usa el texto completo como respaldo — nunca bloquea la carga.
 function normalizarTextoConservandoMayus(raw){
   return String(raw||'').trim().replace(/\s+/g,' ');
+}
+function juntarPatentePartida(parts){
+  const out = [];
+  let i = 0;
+  while(i < parts.length){
+    const a = parts[i], b = parts[i+1], c = parts[i+2];
+    if(a && b && c && /^[A-Z]{2}$/i.test(a) && /^\d{3}$/.test(b) && /^[A-Z]{2}$/i.test(c)){ out.push(a+b+c); i+=3; continue; }
+    if(a && b && ((/^[A-Z]{2}\d{3}$/i.test(a) && /^[A-Z]{2}$/i.test(b)) || (/^[A-Z]{2}$/i.test(a) && /^\d{3}[A-Z]{2}$/i.test(b)))){ out.push(a+b); i+=2; continue; }
+    if(a && b && /^[A-Z]{3}$/i.test(a) && /^\d{3}$/.test(b)){ out.push(a+b); i+=2; continue; }
+    out.push(a); i+=1;
+  }
+  return out;
+}
+function extraerPatenteClave(textoCompleto){
+  const RE_MERCOSUR = /^[A-Z]{2}\d{3}[A-Z]{2}$/;
+  const RE_VIEJA = /^[A-Z]{3}\d{3}$/;
+  let parts = textoCompleto.split(' ').filter(Boolean);
+  parts = juntarPatentePartida(parts);
+  const encontrada = parts.find(p => RE_MERCOSUR.test(p.toUpperCase()) || RE_VIEJA.test(p.toUpperCase()));
+  return encontrada ? encontrada.toUpperCase() : null;
 }
 
 // Distancia: puede venir como número crudo (ya en km) o como texto "2501 Km" / "364 m"
@@ -642,18 +668,18 @@ async function parseExcel(file){
 
   dataRows.forEach((r, i) => {
     const dispositivoRaw = r[mapa.dispositivo];
-    // El identificador del vehículo es el texto de "Dispositivo" TAL CUAL viene
-    // en el reporte — no se intenta separar patente/modelo/zona. Si dos filas
-    // tienen el mismo texto exacto, son el mismo vehículo; si difieren en algo
-    // (una letra, un espacio, la zona incluida en el texto), se tratan como
-    // vehículos distintos — igual que agrupar por esa columna en una tabla
-    // dinámica de Excel.
-    const patente = normalizarTextoConservandoMayus(dispositivoRaw);
-    const modelo = null, zona = null;
-    if(!patente){
+    // dispositivo_original: el texto EXACTO, siempre — es lo único que se muestra en pantalla.
+    const dispositivoTexto = normalizarTextoConservandoMayus(dispositivoRaw);
+    if(!dispositivoTexto){
       errores.push({ fila: headerIdx+2+i, motivo:'La columna Dispositivo viene vacía en esta fila', raw: dispositivoRaw });
       return;
     }
+    // patente: clave interna para AGRUPAR el historial de un mismo vehículo,
+    // aunque el texto completo cambie (ej. cambio de zona). Si no se puede
+    // reconocer ninguna patente en el texto, se usa el texto completo como
+    // clave (no bloquea la carga, solo pierde la agrupación en ese caso puntual).
+    const patente = extraerPatenteClave(dispositivoTexto) || dispositivoTexto;
+    const modelo = null, zona = null;
     const fecha_inicio = mapa.fecha_inicio!==undefined ? parseFechaInicio(r[mapa.fecha_inicio]) : null;
 
     let periodo, periodoLabel;
@@ -672,7 +698,7 @@ async function parseExcel(file){
     const claveDup = patente+'|'+periodo;
     const row = {
       patente, modelo, zona, periodo, periodoLabel,
-      dispositivo_original: normalizarTextoConservandoMayus(dispositivoRaw),
+      dispositivo_original: dispositivoTexto,
       fecha_inicio,
       horas_motor: mapa.horas_motor!==undefined ? parseHoras(r[mapa.horas_motor]) : null,
       horas_ralenti: mapa.horas_ralenti!==undefined ? parseHoras(r[mapa.horas_ralenti]) : null,
