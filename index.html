@@ -758,15 +758,24 @@ async function sbSelect(table, cols, filters){
 
 async function fetchFilterOptions(){
   const [reportes, vehiculos] = await Promise.all([
-    sbSelect('gps_reportes', 'periodo, periodo_label, zona_periodo, modelo_periodo'),
+    sbSelect('gps_reportes', 'periodo, periodo_label, zona_periodo, modelo_periodo, dispositivo_original, vehiculo_dominio'),
     sbSelect('vehiculos', 'dominio, region, label, nombre_completo'),
   ]);
   const periodos = uniqBy(reportes, 'periodo').sort((a,b)=>b.periodo.localeCompare(a.periodo));
-  // unión de lo que hay en vehiculos (zona/modelo actuales) + lo que aparece
-  // históricamente en los reportes (por si un vehículo cambió de zona)
   const modelos = [...new Set([...vehiculos.map(v=>v.label), ...reportes.map(r=>r.modelo_periodo)].filter(Boolean))].sort();
   const zonas = [...new Set([...vehiculos.map(v=>v.region), ...reportes.map(r=>r.zona_periodo)].filter(Boolean))].sort();
-  return { periodos, vehiculos, modelos, zonas };
+  // "Dispositivos": cada texto EXACTO que apareció alguna vez en la columna
+  // Dispositivo del Excel — igual que el autofiltro de una columna en Excel,
+  // no un resumen por vehículo. Si un vehículo cambió de zona, sus dos
+  // nombres históricos aparecen como dos opciones distintas.
+  const vistos = new Set();
+  const dispositivos = [];
+  reportes.forEach(r=>{
+    const texto = r.dispositivo_original;
+    if(texto && !vistos.has(texto)){ vistos.add(texto); dispositivos.push(texto); }
+  });
+  dispositivos.sort((a,b)=>a.localeCompare(b));
+  return { periodos, vehiculos, modelos, zonas, dispositivos };
 }
 function uniqBy(arr, key){
   const seen = new Set(); const out = [];
@@ -781,7 +790,7 @@ async function fetchReportesFiltrados(filters){
     return q;
   });
   let rows = data || [];
-  if(filters.vehiculo && filters.vehiculo.length) rows = rows.filter(r => filters.vehiculo.includes(r.vehiculo_dominio));
+  if(filters.vehiculo && filters.vehiculo.length) rows = rows.filter(r => filters.vehiculo.includes(r.dispositivo_original));
   return rows;
 }
 
@@ -904,7 +913,7 @@ async function renderView(){
 
 function filtersBar(opts, current){
   const periodoOpts = opts.periodos.map(p=>({value:p.periodo, label:p.periodo_label}));
-  const vehiculoOpts = opts.vehiculos.map(v=>({value:v.dominio, label:v.nombre_completo || nombreCompleto(v.dominio, v.label)}));
+  const vehiculoOpts = opts.dispositivos.map(texto=>({value:texto, label:texto}));
   return `
   <div class="filters">
     ${periodoOpts.length ? multiSelectTrigger('f-periodo','calendar','Todos los períodos', periodoOpts, current.periodo) : ''}
@@ -934,7 +943,7 @@ function bindFiltersBar(onChange){
   if(document.getElementById('f-vehiculo-trigger')){
     document.getElementById('f-vehiculo-trigger').onclick = (e) => {
       e.stopPropagation();
-      abrirMultiSelectPanel('f-vehiculo', state._optsCache.vehiculos.map(v=>({value:v.dominio,label:v.nombre_completo||nombreCompleto(v.dominio,v.label)})),
+      abrirMultiSelectPanel('f-vehiculo', state._optsCache.dispositivos.map(texto=>({value:texto,label:texto})),
         state.filters.vehiculo, 'Todos los dispositivos', (nuevos) => { state.filters.vehiculo = nuevos; onChange(); });
     };
   }
