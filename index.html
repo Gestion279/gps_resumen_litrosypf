@@ -201,14 +201,23 @@
   table.pivot-table tr.pivot-total-row td{font-weight:700;background:var(--slate-50);color:var(--navy-950);}
   table.pivot-table tr.pivot-total-row td.sticky-col{background:var(--slate-50);}
   table.pivot-table th.sticky-col{z-index:3;}
+  table.pivot-table tbody tr:nth-child(even) td.sticky-col{background:#fafbfc;}
   table.pivot-table td, table.pivot-table th{white-space:nowrap;}
   table.pivot-table td{padding:7px 14px;}
   table.pivot-table th{padding:9px 14px;}
   .pivot-scroll{overflow:auto;margin:0 20px 20px 20px;}
-  .pivot-scroll table.pivot-table thead th{position:sticky;top:0;background:#fff;z-index:3;box-shadow:0 1px 0 var(--slate-200);}
+  .pivot-scroll table thead th{position:sticky;top:0;background:#fff;z-index:3;box-shadow:0 1px 0 var(--slate-200);}
+  .pivot-scroll table.tabla-detalle td{padding:7px 14px;}
+  .pivot-scroll table.tabla-detalle th{padding:9px 14px;}
   .pivot-scroll table.pivot-table thead th.sticky-col{z-index:5;}
   .pivot-scroll table.pivot-table tr.pivot-total-row td{position:sticky;top:var(--pivot-head-h,34px);z-index:2;box-shadow:0 1px 0 var(--slate-200);}
   .pivot-scroll table.pivot-table tr.pivot-total-row td.sticky-col{z-index:4;}
+
+  /* ---------- Indicadores: grilla 2 filas x 2 columnas ---------- */
+  .ind-toolbar{display:flex;justify-content:flex-end;margin-bottom:12px;}
+  .ind-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-bottom:26px;}
+  .ind-grid > .panel{margin-bottom:0;min-width:0;}
+  .ind-chart{height:250px;}
 
   /* ---------- Alerta compacta de km improbables ---------- */
   .km-alert{background:#fff;border:1px solid #f0cec7;border-radius:var(--radius-sm);margin-bottom:14px;font-size:12.5px;}
@@ -335,6 +344,7 @@
     .kpi-card{padding:10px 11px;flex-basis:104px;min-width:104px;}
     .kpi-card .value{font-size:16px;}
     .search-box input{width:120px;}
+    .ind-grid{grid-template-columns:minmax(0,1fr);}
     .config-box{padding:26px;}
   }
   html{scroll-padding-top:env(safe-area-inset-top,0px);}
@@ -864,6 +874,7 @@ function render(){
         ${tabItem('resumen','General')}
         ${tabItem('km','Km recorridos')}
         ${tabItem('litros','Litros consumidos')}
+        ${tabItem('indicadores','Indicadores')}
       </div>
       <div class="content" id="content">Cargando…</div>
     </div>
@@ -939,6 +950,7 @@ async function renderView(){
     if(state.view === 'resumen') await renderResumen(content);
     else if(state.view === 'km') await renderKmRecorridos(content);
     else if(state.view === 'litros') await renderLitrosConsumidos(content);
+    else if(state.view === 'indicadores') await renderIndicadores(content);
     else if(state.view === 'historico') await renderHistorico(content);
   }catch(e){
     console.error(e);
@@ -1088,16 +1100,17 @@ const PIVOT_FILAS_VISIBLES = 15;
 function ajustarAlturaPivot(containerId){
   const cont = document.getElementById(containerId);
   if(!cont) return;
-  const table = cont.querySelector('table.pivot-table');
+  const table = cont.querySelector('table');
   if(!table){ cont.style.maxHeight=''; return; }
   const head = table.tHead ? table.tHead.getBoundingClientRect().height : 0;
   cont.style.setProperty('--pivot-head-h', head + 'px');
   const filas = [...table.tBodies[0].rows];
-  const visibles = filas.slice(0, PIVOT_FILAS_VISIBLES + 1); // +1 = fila Total
+  const extra = table.querySelector('tr.pivot-total-row') ? 1 : 0; // fila Total fija
+  const visibles = filas.slice(0, PIVOT_FILAS_VISIBLES + extra);
   const alto = visibles.reduce((acc,tr)=> acc + tr.getBoundingClientRect().height, head);
   const hayScrollX = cont.scrollWidth > cont.clientWidth;
   const barra = hayScrollX ? (cont.offsetHeight - cont.clientHeight || 12) : 0;
-  cont.style.maxHeight = filas.length > PIVOT_FILAS_VISIBLES + 1 ? Math.ceil(alto + barra + 2) + 'px' : '';
+  cont.style.maxHeight = filas.length > PIVOT_FILAS_VISIBLES + extra ? Math.ceil(alto + barra + 2) + 'px' : '';
 }
 
 const MESES_ABBR = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -1265,11 +1278,102 @@ async function renderLitrosConsumidos(content){
     document.getElementById('litros-export').onclick = () => exportarPivotCSV(pivotLitros, 'litros_consumidos', 1);
   }
 }
+/* ---------- INDICADORES (Km/litro y Litros/100 km) ---------- */
+async function renderIndicadores(content){
+  content.innerHTML = `<div class="empty"><span class="spin"></span> Cargando…</div>`;
+  const opts = await fetchFilterOptions();
+  state._optsCache = opts;
+  const rows = await fetchReportesFiltrados(state.filters);
+  const { validas, sospechosas } = marcarSospechosos(rows);
+  // Solo cuentan los registros con km Y litros, para que los dos indicadores
+  // se calculen sobre la misma base y un mes sin carga de combustible no
+  // aparezca como consumo cero.
+  const conAmbos = validas.filter(r => r.distancia_km>0 && r.litros_ypf>0);
+  const kmL = rs => { const km=sumField(rs,'distancia_km'), li=sumField(rs,'litros_ypf'); return li ? km/li : null; };
+  const l100 = rs => { const km=sumField(rs,'distancia_km'), li=sumField(rs,'litros_ypf'); return km ? li/(km/100) : null; };
+  const pivotKml = buildPivot(conAmbos, { aggregate: kmL });
+  const pivotL100 = buildPivot(conAmbos, { aggregate: l100 });
+  // Mismo orden de vehículos en las dos tablas (el más eficiente arriba),
+  // para que cada fila quede enfrentada con la de la otra tabla.
+  const orden = new Map(pivotKml.devices.map((d,i)=>[d.nombre,i]));
+  pivotL100.devices.sort((a,b)=> (orden.get(a.nombre)??1e9) - (orden.get(b.nombre)??1e9));
+
+  const labels = pivotKml.periodos.map(periodoLabelCorta);
+  const hayDatos = pivotKml.devices.length > 0;
+  const vacio = `<div class="empty">No hay datos con km y litros para estos filtros todavía.</div>`;
+  const chartOpts = { w:560, h:250, mostrarValores:true };
+
+  content.innerHTML = `
+    ${filtersBar(opts, state.filters)}
+    ${warningSospechososHtml(sospechosas)}
+    ${hayDatos ? `<div class="ind-toolbar"><div class="search-box">${icon('search')}<input id="ind-search" placeholder="Buscar vehículo…"></div></div>` : ''}
+    <div class="ind-grid">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left"><span class="ic">${icon('gauge')}</span><div><h2>Km por litro</h2><div class="sub">Promedio de la flota por mes</div></div></div>
+        </div>
+        <div class="panel-body"><div class="ind-chart">${hayDatos ? miniBarChart(labels, pivotKml.periodos.map(p=>pivotKml.totalPorPeriodo[p]||0), {...chartOpts, color:'#20b5a2', decTicks:1, decValores:2}) : vacio}</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left"><span class="ic">${icon('fuel')}</span><div><h2>Litros cada 100 km</h2><div class="sub">Promedio de la flota por mes</div></div></div>
+        </div>
+        <div class="panel-body"><div class="ind-chart">${hayDatos ? miniBarChart(labels, pivotL100.periodos.map(p=>pivotL100.totalPorPeriodo[p]||0), {...chartOpts, color:'#e6a91b', decTicks:1, decValores:1}) : vacio}</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left"><span class="ic">${icon('gauge')}</span><div><h2>Km por litro</h2><div class="sub">Por dispositivo y mes</div></div></div>
+          <div class="panel-head-actions"><button class="btn btn-secondary" id="kml-export">${icon('download')} Exportar</button></div>
+        </div>
+        <div class="pivot-scroll" id="kml-tabla">${hayDatos ? pivotTableHtml(pivotKml,{decimales:2}) : vacio}</div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left"><span class="ic">${icon('fuel')}</span><div><h2>Litros cada 100 km</h2><div class="sub">Por dispositivo y mes</div></div></div>
+          <div class="panel-head-actions"><button class="btn btn-secondary" id="l100-export">${icon('download')} Exportar</button></div>
+        </div>
+        <div class="pivot-scroll" id="l100-tabla">${hayDatos ? pivotTableHtml(pivotL100,{decimales:1}) : vacio}</div>
+      </div>
+    </div>
+  `;
+  bindFiltersBar(()=>renderView());
+  if(!hayDatos) return;
+
+  const ajustar = () => { ajustarAlturaPivot('kml-tabla'); ajustarAlturaPivot('l100-tabla'); };
+  ajustar();
+  window.onresize = ajustar;
+
+  // Desplazamiento sincronizado: al mover una tabla, la otra acompaña,
+  // así cada vehículo queda siempre a la misma altura en las dos.
+  const a = document.getElementById('kml-tabla'), b = document.getElementById('l100-tabla');
+  let bloqueo = false;
+  const sync = (origen, destino) => () => {
+    if(bloqueo) return;
+    bloqueo = true;
+    destino.scrollTop = origen.scrollTop;
+    destino.scrollLeft = origen.scrollLeft;
+    requestAnimationFrame(()=>{ bloqueo = false; });
+  };
+  a.addEventListener('scroll', sync(a,b));
+  b.addEventListener('scroll', sync(b,a));
+
+  document.getElementById('ind-search').oninput = (e)=>{
+    const q = e.target.value;
+    a.innerHTML = pivotTableHtml(pivotKml,{decimales:2, searchQuery:q});
+    b.innerHTML = pivotTableHtml(pivotL100,{decimales:1, searchQuery:q});
+    a.scrollTop = b.scrollTop = 0;
+    ajustar();
+  };
+  document.getElementById('kml-export').onclick = () => exportarPivotCSV(pivotKml, 'km_por_litro', 2);
+  document.getElementById('l100-export').onclick = () => exportarPivotCSV(pivotL100, 'litros_cada_100km', 1);
+}
+
 // Gráfico de barras propio, en SVG inline — no depende de que la librería
 // Chart.js externa haya cargado (evita el "Chart is not defined" si el CDN
 // está bloqueado o tarda), y queda igual de liviano y responsive.
-function miniBarChart(labels, values){
-  const w = 960, h = 260, padL = 48, padR = 12, padT = 12, padB = 34;
+function miniBarChart(labels, values, opts={}){
+  const { w = 960, h = 260, color = '#20b5a2', decTicks = 0, decValores = 1, mostrarValores = false } = opts;
+  const padL = 48, padR = 12, padT = mostrarValores ? 22 : 12, padB = 34;
   const innerW = w - padL - padR, innerH = h - padT - padB;
   const max = Math.max(1, ...values.map(v=>v||0));
   const n = labels.length || 1;
@@ -1281,13 +1385,14 @@ function miniBarChart(labels, values){
     const val = max * t/ticks;
     const y = padT + innerH - (innerH * t/ticks);
     gridSvg += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${w-padR}" y2="${y.toFixed(1)}" stroke="#eceef2" stroke-width="1"/>`;
-    gridSvg += `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="#8b93a3" text-anchor="end">${fmtNum(val,0)}</text>`;
+    gridSvg += `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="#8b93a3" text-anchor="end">${fmtNum(val,decTicks)}</text>`;
   }
   const bars = values.map((v,i)=>{
     const bh = max ? ((v||0)/max) * innerH : 0;
     const x = padL + i*gap + (gap-bw)/2;
     const y = padT + innerH - bh;
-    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0,bh).toFixed(1)}" rx="3" fill="#20b5a2"><title>${esc(labels[i])}: ${fmtNum(v,1)}</title></rect>`;
+    const valTxt = (mostrarValores && v) ? `<text x="${(x+bw/2).toFixed(1)}" y="${(y-6).toFixed(1)}" font-size="10" font-weight="600" fill="#4a5363" text-anchor="middle">${fmtNum(v,decValores)}</text>` : '';
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0,bh).toFixed(1)}" rx="3" fill="${color}"><title>${esc(labels[i])}: ${fmtNum(v,decValores)}</title></rect>${valTxt}`;
   }).join('');
   const labelsSvg = labels.map((l,i)=>{
     const x = padL + i*gap + gap/2;
@@ -1343,7 +1448,7 @@ async function renderResumen(content){
           <button class="btn btn-secondary" id="btn-export">${icon('download')} Exportar</button>
         </div>
       </div>
-      <div class="panel-body table-wrap" id="tabla-detalle">
+      <div class="pivot-scroll" id="tabla-detalle">
         ${rows.length ? tablaReportes(rows, activosSet) : `<div class="empty">No hay datos para estos filtros todavía. Cargá un reporte desde "Importar Reporte".</div>`}
       </div>
     </div>
@@ -1351,10 +1456,13 @@ async function renderResumen(content){
   bindFiltersBar(()=>renderView());
   if(rows.length){
     bindTablaReportesRows(rows, activosSet);
+    window.onresize = () => ajustarAlturaPivot('tabla-detalle');
     document.getElementById('tabla-search').oninput = (e) => {
       const q = e.target.value.toLowerCase();
       const filtered = rows.filter(r => (r.vehiculos?.dominio||'').toLowerCase().includes(q) || (r.modelo_periodo||r.vehiculos?.label||'').toLowerCase().includes(q));
-      document.getElementById('tabla-detalle').innerHTML = filtered.length ? tablaReportes(filtered, activosSet) : `<div class="empty">Sin resultados.</div>`;
+      const cont = document.getElementById('tabla-detalle');
+      cont.innerHTML = filtered.length ? tablaReportes(filtered, activosSet) : `<div class="empty">Sin resultados.</div>`;
+      cont.scrollTop = 0;
       bindTablaReportesRows(filtered, activosSet);
     };
     document.getElementById('btn-export').onclick = () => exportarCSV(rows);
@@ -1419,7 +1527,7 @@ function thSort(label, key, sort, extraClass){
 function tablaReportes(rows, activosSet){
   const sort = state._sortDetalle || (state._sortDetalle = { ...SORT_DEFAULT });
   const sorted = ordenarFilas(rows, sort, activosSet);
-  return `<table>
+  return `<table class="tabla-detalle">
     <thead><tr>
       ${thSort('Período','periodo',sort)}
       ${thSort('Dispositivo','dispositivo',sort)}
@@ -1470,6 +1578,7 @@ function nombreCompletoConZona(patente, modelo, zona){
   return base;
 }
 function bindTablaReportesRows(rows, activosSet){
+  ajustarAlturaPivot('tabla-detalle');
   document.querySelectorAll('#tabla-detalle tr.row-click').forEach(tr=>{
     tr.onclick = () => { state._vehiculoSel = tr.dataset.dominio; render(); };
   });
