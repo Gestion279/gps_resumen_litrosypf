@@ -798,11 +798,64 @@ async function sbSelect(table, cols, filters){
   });
 }
 
+// Descarga todas las filas pidiendo varias páginas A LA VEZ (en lugar de una
+// detrás de otra). Primero pregunta cuántas filas hay, y después baja las
+// páginas en paralelo, de a PARALELO por tanda. El orden por una columna
+// única garantiza que ninguna fila se repita ni se pierda entre páginas.
+async function sbSelectParalelo(table, cols, ordenCol){
+  const PAGE = 1000, PARALELO = 6;
+  const { count, error: errCount } = await state.sb.from(table).select(ordenCol, { count:'exact', head:true });
+  if(errCount) throw errCount;
+  const paginas = Math.max(1, Math.ceil((count||0) / PAGE));
+  const resultados = new Array(paginas);
+  for(let i=0; i<paginas; i+=PARALELO){
+    const tanda = [];
+    for(let j=i; j<Math.min(i+PARALELO, paginas); j++){
+      tanda.push(
+        state.sb.from(table).select(cols).order(ordenCol, { ascending:true }).range(j*PAGE, j*PAGE+PAGE-1)
+          .then(({ data, error })=>{ if(error) throw error; resultados[j] = data || []; })
+      );
+    }
+    await Promise.all(tanda);
+  }
+  let all = resultados.flat();
+  // Si entre el conteo y la descarga se agregaron filas, se completan acá.
+  let desde = paginas*PAGE;
+  while(all.length >= desde){
+    const { data, error } = await state.sb.from(table).select(cols).order(ordenCol, { ascending:true }).range(desde, desde+PAGE-1);
+    if(error) throw error;
+    all = all.concat(data || []);
+    if(!data || data.length < PAGE) break;
+    desde += PAGE;
+  }
+  return all;
+}
+
+// Caché en memoria: la base se descarga UNA sola vez y todas las hojas
+// (General, Km, Litros, Indicadores, Histórico) y los filtros trabajan sobre
+// esa copia. Antes, cada cambio de pestaña o de filtro volvía a bajar la
+// tabla completa dos veces. La copia se descarta al importar una planilla o
+// al tocar el botón Actualizar.
+const cacheDatos = { reportes:null, vehiculos:null, promesa:null, cargadoEn:null };
+function invalidarCacheDatos(){
+  cacheDatos.reportes = null; cacheDatos.vehiculos = null; cacheDatos.promesa = null; cacheDatos.cargadoEn = null;
+}
+async function cargarDatosBase(){
+  if(cacheDatos.reportes) return cacheDatos;
+  if(!cacheDatos.promesa){
+    cacheDatos.promesa = Promise.all([
+      sbSelectParalelo('gps_reportes', '*, vehiculos(dominio, region, label)', 'id'),
+      sbSelectParalelo('vehiculos', 'dominio, region, label, nombre_completo', 'dominio'),
+    ]).then(([reportes, vehiculos])=>{
+      cacheDatos.reportes = reportes; cacheDatos.vehiculos = vehiculos; cacheDatos.cargadoEn = new Date();
+      return cacheDatos;
+    }).catch(e=>{ cacheDatos.promesa = null; throw e; });
+  }
+  return cacheDatos.promesa;
+}
+
 async function fetchFilterOptions(){
-  const [reportes, vehiculos] = await Promise.all([
-    sbSelect('gps_reportes', 'periodo, periodo_label, zona_periodo, modelo_periodo, dispositivo_original, vehiculo_dominio'),
-    sbSelect('vehiculos', 'dominio, region, label, nombre_completo'),
-  ]);
+  const { reportes, vehiculos } = await cargarDatosBase();
   const periodos = uniqBy(reportes, 'periodo').sort((a,b)=>b.periodo.localeCompare(a.periodo));
   const modelos = [...new Set([...vehiculos.map(v=>v.label), ...reportes.map(r=>r.modelo_periodo)].filter(Boolean))].sort();
   const zonas = [...new Set([...vehiculos.map(v=>v.region), ...reportes.map(r=>r.zona_periodo)].filter(Boolean))].sort();
@@ -826,12 +879,12 @@ function uniqBy(arr, key){
 }
 
 async function fetchReportesFiltrados(filters){
-  const data = await sbSelectPaginado(() => {
-    let q = state.sb.from('gps_reportes').select('*, vehiculos(dominio, region, label)');
-    if(filters.periodo && filters.periodo.length) q = q.in('periodo', filters.periodo);
-    return q;
-  });
-  let rows = data || [];
+  const { reportes } = await cargarDatosBase();
+  let rows = reportes.slice();
+  if(filters.periodo && filters.periodo.length){
+    const set = new Set(filters.periodo);
+    rows = rows.filter(r => set.has(r.periodo));
+  }
   if(filters.vehiculo && filters.vehiculo.length) rows = rows.filter(r => filters.vehiculo.includes(r.dispositivo_original));
   return rows;
 }
@@ -884,16 +937,16 @@ function render(){
   });
   document.getElementById('topbar-actions').innerHTML = `
     <button class="btn btn-primary" id="btn-cargar-planilla">${icon('upload')} Cargar planilla</button>
-    <button class="icon-btn" id="btn-refresh" title="Actualizar">${icon('refresh')}</button>
+    <button class="icon-btn" id="btn-refresh" title="Actualizar datos desde Supabase">${icon('refresh')}</button>
     <button class="icon-btn" id="btn-dots" title="Más opciones">${icon('dots')}</button>
     <button class="icon-btn" id="btn-install-icon" style="display:none" title="Instalar app">${icon('install')}</button>
   `;
   bindInstallButton();
   document.getElementById('btn-cargar-planilla').onclick = () => abrirModalImportar();
-  document.getElementById('btn-refresh').onclick = () => renderView();
+  document.getElementById('btn-refresh').onclick = () => { invalidarCacheDatos(); renderView(); };
   document.getElementById('btn-dots').onclick = () => {
     const proceed = confirm('¿Cambiar la configuración de conexión a Supabase?');
-    if(proceed){ clearConfig(); state.sb=null; render(); }
+    if(proceed){ clearConfig(); state.sb=null; invalidarCacheDatos(); render(); }
   };
   renderView();
 }
@@ -1420,8 +1473,8 @@ async function renderResumen(content){
   const latestPeriodo = opts.periodos[0]?.periodo;
   let activosSet = new Set();
   if(latestPeriodo){
-    const activos = await sbSelect('gps_reportes','vehiculo_dominio',{periodo: latestPeriodo});
-    activosSet = new Set(activos.map(a=>a.vehiculo_dominio));
+    const { reportes } = await cargarDatosBase();
+    activosSet = new Set(reportes.filter(a=>a.periodo===latestPeriodo).map(a=>a.vehiculo_dominio));
   }
 
   const periodoSub = state.filters.periodo && state.filters.periodo.length===1
@@ -1614,8 +1667,11 @@ function exportarCSV(rows){
 }
 
 async function renderVehiculoDetalle(content, vehiculoDominio){
-  const [vehiculo] = await sbSelect('vehiculos', '*', { dominio: vehiculoDominio });
-  const reportes = await sbSelect('gps_reportes', '*', { vehiculo_dominio: vehiculoDominio });
+  const [[vehiculo], base] = await Promise.all([
+    sbSelect('vehiculos', '*', { dominio: vehiculoDominio }),
+    cargarDatosBase(),
+  ]);
+  const reportes = base.reportes.filter(r => r.vehiculo_dominio === vehiculoDominio);
   reportes.sort((a,b)=>a.periodo.localeCompare(b.periodo));
   const k = agregarKPIs(reportes);
   content.innerHTML = `
@@ -2048,6 +2104,8 @@ async function ejecutarImportacion(resultEl){
       registros_sin_cambios: sinCambios, registros_error: errores, estado:'completado',
     }).eq('id', importacion.id);
 
+    invalidarCacheDatos();
+    renderView();
     toast(`Importación completada: ${nuevos} nuevos, ${actualizados} actualizados, ${sinCambios} sin cambios.`, 'success');
     state.importState = null;
     resultEl.innerHTML = '';
