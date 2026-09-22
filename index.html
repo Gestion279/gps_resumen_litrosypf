@@ -727,16 +727,33 @@ async function parseExcel(file){
 /* =========================================================================
    DATOS — capa Supabase
    ========================================================================= */
-async function sbSelect(table, cols, filters){
-  let q = state.sb.from(table).select(cols || '*');
-  if(filters){
-    for(const [k,v] of Object.entries(filters)){
-      if(v!==undefined && v!==null && v!=='') q = q.eq(k, v);
-    }
+// Supabase devuelve como máximo 1000 filas por consulta si no se pagina
+// explícitamente. Con más de 1000 reportes ya guardados, cualquier consulta
+// "todos los períodos" se cortaba en las primeras 1000 sin avisar. Esta
+// función pagina automáticamente hasta traer todas las filas, sin importar
+// cuántas haya.
+async function sbSelectPaginado(queryBuilder){
+  const PAGE = 1000;
+  let all = [], from = 0;
+  while(true){
+    const { data, error } = await queryBuilder().range(from, from+PAGE-1);
+    if(error) throw error;
+    all = all.concat(data || []);
+    if(!data || data.length < PAGE) break;
+    from += PAGE;
   }
-  const { data, error } = await q;
-  if(error) throw error;
-  return data;
+  return all;
+}
+async function sbSelect(table, cols, filters){
+  return sbSelectPaginado(() => {
+    let q = state.sb.from(table).select(cols || '*');
+    if(filters){
+      for(const [k,v] of Object.entries(filters)){
+        if(v!==undefined && v!==null && v!=='') q = q.eq(k, v);
+      }
+    }
+    return q;
+  });
 }
 
 async function fetchFilterOptions(){
@@ -758,10 +775,11 @@ function uniqBy(arr, key){
 }
 
 async function fetchReportesFiltrados(filters){
-  let q = state.sb.from('gps_reportes').select('*, vehiculos(dominio, region, label)');
-  if(filters.periodo && filters.periodo.length) q = q.in('periodo', filters.periodo);
-  const { data, error } = await q;
-  if(error) throw error;
+  const data = await sbSelectPaginado(() => {
+    let q = state.sb.from('gps_reportes').select('*, vehiculos(dominio, region, label)');
+    if(filters.periodo && filters.periodo.length) q = q.in('periodo', filters.periodo);
+    return q;
+  });
   let rows = data || [];
   if(filters.vehiculo && filters.vehiculo.length) rows = rows.filter(r => filters.vehiculo.includes(r.vehiculo_dominio));
   return rows;
@@ -1419,9 +1437,9 @@ async function buildPreview(file, hash, parsed, resultEl){
   // (un mismo Excel puede traer varios meses consolidados)
   let reportesExistentes = [];
   if(parsed.periodos.length){
-    const { data, error } = await state.sb.from('gps_reportes').select('*').in('periodo', parsed.periodos);
-    if(error) throw error;
-    reportesExistentes = data;
+    reportesExistentes = await sbSelectPaginado(() =>
+      state.sb.from('gps_reportes').select('*').in('periodo', parsed.periodos)
+    );
   }
   const reportePorClave = {}; reportesExistentes.forEach(r=>reportePorClave[r.vehiculo_dominio+'|'+r.periodo]=r);
 
