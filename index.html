@@ -1149,7 +1149,7 @@ async function renderLitrosConsumidos(content){
       <div class="panel-head">
         <div class="panel-head-left"><span class="ic">${icon('droplet')}</span><div><h2>Litros cargados por mes</h2><div class="sub">Total de la flota</div></div></div>
       </div>
-      <div class="panel-body"><div style="height:280px"><canvas id="chart-litros"></canvas></div></div>
+      <div class="panel-body"><div style="height:280px">${miniBarChart(pivotLitros.periodos.map(periodoLabelCorta), pivotLitros.periodos.map(p=>pivotLitros.totalPorPeriodo[p]||0))}</div></div>
     </div>
     <div class="panel">
       <div class="panel-head">
@@ -1173,7 +1173,6 @@ async function renderLitrosConsumidos(content){
     </div>
   `;
   bindFiltersBar(()=>renderView());
-  renderChartLitros(pivotLitros);
   if(pivotLitros.devices.length){
     document.getElementById('litros-search').oninput = (e)=>{
       const q = e.target.value;
@@ -1183,22 +1182,35 @@ async function renderLitrosConsumidos(content){
     document.getElementById('litros-export').onclick = () => exportarPivotCSV(pivotLitros, 'litros_consumidos', 1);
   }
 }
-function renderChartLitros(pivot){
-  const ctx = document.getElementById('chart-litros');
-  if(!ctx) return;
-  if(state._chartLitros){ state._chartLitros.destroy(); state._chartLitros = null; }
-  state._chartLitros = new Chart(ctx, {
-    type:'bar',
-    data:{
-      labels: pivot.periodos.map(periodoLabelCorta),
-      datasets:[{ label:'Litros cargados', data: pivot.periodos.map(p=>pivot.totalPorPeriodo[p]||0), backgroundColor:'#20b5a2', borderRadius:4 }]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ display:false } },
-      scales:{ y:{ beginAtZero:true } }
-    }
-  });
+// Gráfico de barras propio, en SVG inline — no depende de que la librería
+// Chart.js externa haya cargado (evita el "Chart is not defined" si el CDN
+// está bloqueado o tarda), y queda igual de liviano y responsive.
+function miniBarChart(labels, values){
+  const w = 960, h = 260, padL = 48, padR = 12, padT = 12, padB = 34;
+  const innerW = w - padL - padR, innerH = h - padT - padB;
+  const max = Math.max(1, ...values.map(v=>v||0));
+  const n = labels.length || 1;
+  const gap = innerW / n;
+  const bw = Math.max(4, gap * 0.55);
+  const ticks = 4;
+  let gridSvg = '';
+  for(let t=0;t<=ticks;t++){
+    const val = max * t/ticks;
+    const y = padT + innerH - (innerH * t/ticks);
+    gridSvg += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${w-padR}" y2="${y.toFixed(1)}" stroke="#eceef2" stroke-width="1"/>`;
+    gridSvg += `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="#8b93a3" text-anchor="end">${fmtNum(val,0)}</text>`;
+  }
+  const bars = values.map((v,i)=>{
+    const bh = max ? ((v||0)/max) * innerH : 0;
+    const x = padL + i*gap + (gap-bw)/2;
+    const y = padT + innerH - bh;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0,bh).toFixed(1)}" rx="3" fill="#20b5a2"><title>${esc(labels[i])}: ${fmtNum(v,1)}</title></rect>`;
+  }).join('');
+  const labelsSvg = labels.map((l,i)=>{
+    const x = padL + i*gap + gap/2;
+    return `<text x="${x.toFixed(1)}" y="${h-10}" font-size="10" fill="#8b93a3" text-anchor="middle">${esc(l)}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:100%">${gridSvg}${bars}${labelsSvg}</svg>`;
 }
 
 /* ---------- RESUMEN GPS ---------- */
