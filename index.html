@@ -21,18 +21,18 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   :root{
-    /* Paleta pedida: navy → verde claro */
-    --p1:#1B4079; --p2:#4D7C8A; --p3:#7F9C96; --p4:#8FAD88; --p5:#C7DB94;
-    --p-lightest:#C7DB94; /* el más claro de la paleta -> fondo del lienzo */
-    --p-canvas:#eef3dd;   /* leve aclarado de --p5, para que las tarjetas blancas resalten */
+    /* Paleta corporativa reducida: navy (títulos/valores) + turquesa (único acento) */
+    --navy-950:#0f2a47;
+    --navy-900:#15314f;
+    --navy-800:#1c3a5a;
 
-    --teal-700:#142f5c;
-    --teal-600:#1B4079;
-    --teal-500:#2d5a94;
-    --teal-50:#eef1f6;
-    --navy-950:#132a4d;
-    --navy-900:#152238;
-    --navy-800:#1c2e4a;
+    --teal-700:#0c7d72;
+    --teal-600:#0f9d8b;
+    --teal-500:#20b5a2;
+    --teal-50:#eafbf8;
+
+    --canvas:#f4f8f7;   /* fondo general: gris muy claro, apenas verdoso/frío */
+
     --slate-50:#f6f7f9;
     --slate-100:#eceef2;
     --slate-200:#dde1e8;
@@ -41,29 +41,27 @@
     --slate-800:#2a3242;
     --amber:#e6a91b;
     --amber-dark:#b8820e;
-    --green:#2f9e5b;
+    --green:#1c9a5b;
+    --green-bg:#e5f6ec;
     --red:#c0432f;
     --gray-mid:#8b93a3;
 
-    /* tintes de las tarjetas KPI, derivados de la paleta (más saturados que antes) */
-    --kpi-blue-bg:#B0BCD0;   --kpi-blue-fg:#1B4079;
-    --kpi-teal-bg:#C1D1D6;   --kpi-teal-fg:#3f6673;
-    --kpi-violet-bg:#D2DDDA; --kpi-violet-fg:#546e68;
-    --kpi-green-bg:#D7E2D5;  --kpi-green-fg:#4f6b48;
-    --kpi-amber-bg:#EBF2DA;  --kpi-amber-fg:#6e7f43;
-    --kpi-rose-bg:#B8C4D8;   --kpi-rose-fg:#142f5c;
+    /* Un solo tinte neutro para el ícono de TODAS las tarjetas KPI —
+       ya no hay un color distinto por tarjeta, todas comparten el mismo sistema. */
+    --kpi-icon-bg:#eafbf8;
+    --kpi-icon-fg:#0f9d8b;
 
     --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --font-mono: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
     --radius: 10px;
-    --radius-sm: 7px;
-    --shadow-card: 0 1px 2px rgba(15,23,42,.04), 0 4px 14px rgba(15,23,42,.05);
+    --radius-sm: 8px;
+    --shadow-card: 0 1px 2px rgba(15,42,71,.03), 0 2px 6px rgba(15,42,71,.04);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;height:100%;}
   body{
     font-family:var(--font-ui);
-    background:var(--p-canvas);
+    background:var(--canvas);
     color:var(--slate-800);
     font-size:14px;
     line-height:1.45;
@@ -77,15 +75,16 @@
   #app{display:flex;flex-direction:column;min-height:100vh;}
   .main{flex:1;min-width:0;display:flex;flex-direction:column;}
   .topbar{
-    padding:14px 26px;border-bottom:1px solid var(--slate-200);background:#fff;
+    padding:20px 28px;border-bottom:1px solid var(--slate-100);background:#fff;
     display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
   }
-  .topbar-titles{display:flex;align-items:center;gap:10px;}
+  .topbar-titles{display:flex;align-items:center;gap:12px;}
   .topbar-titles .pin{
-    width:36px;height:36px;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center;flex:none;
+    width:38px;height:38px;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center;flex:none;
+    box-shadow:0 0 0 1px var(--slate-100);
   }
-  .topbar h1{font-size:16.5px;margin:0;font-weight:700;color:var(--navy-950);}
-  .topbar .meta{font-size:12px;color:var(--slate-400);}
+  .topbar h1{font-size:19px;margin:0;font-weight:700;color:var(--navy-950);letter-spacing:-.2px;}
+  .topbar .meta{font-size:12.5px;color:var(--slate-400);margin-top:1px;}
   .topbar-actions{display:flex;align-items:center;gap:8px;}
   .icon-btn{
     width:34px;height:34px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);background:#fff;
@@ -93,7 +92,7 @@
   }
   .icon-btn:hover{background:var(--slate-50);}
   .icon-btn svg{width:16px;height:16px;}
-  .content{padding:20px 26px 60px 26px;flex:1;}
+  .content{padding:24px 28px 60px 28px;flex:1;}
 
   /* ---------- Tabs (reemplazan al sidebar) ---------- */
   .tabbar{display:flex;gap:2px;background:#fff;border-bottom:1px solid var(--slate-200);padding:0 26px;overflow-x:auto;}
@@ -104,13 +103,15 @@
   .tab-item:hover{color:var(--navy-950);}
   .tab-item.active{color:var(--teal-600);border-bottom-color:var(--teal-600);}
 
-  /* ---------- Filters (botones rectangulares, estilo hoja de cálculo) ---------- */
-  .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;}
+  /* ---------- Filters: selectores refinados, altura uniforme ---------- */
+  .filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px;}
   .filter-pill{
     position:relative;display:flex;align-items:center;border:1px solid var(--slate-200);
-    border-radius:var(--radius-sm);background:#fff;padding:0 12px;height:34px;
+    border-radius:var(--radius-sm);background:#fff;padding:0 13px;height:36px;
+    box-shadow:0 1px 2px rgba(15,42,71,.02);
   }
-  .filter-pill svg{width:14px;height:14px;min-width:14px;color:var(--slate-600);flex:none;margin-right:7px;}
+  .filter-pill:hover{border-color:#c7cedb;}
+  .filter-pill svg{width:14px;height:14px;min-width:14px;color:var(--slate-400);flex:none;margin-right:8px;}
   .filter-pill select{
     border:none;background:transparent;padding:0;color:var(--slate-800);
     min-width:170px;font-weight:600;font-size:12.5px;appearance:none;-webkit-appearance:none;
@@ -135,62 +136,63 @@
   .ms-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid var(--slate-100);}
   .ms-actions .btn{padding:6px 12px;font-size:12.5px;}
 
-  /* ---------- KPI cards: todas en una sola fila ---------- */
-  .kpi-grid{display:flex;flex-wrap:nowrap;gap:12px;margin-bottom:22px;overflow-x:auto;padding-bottom:4px;}
+  /* ---------- KPI cards: uniformes, mismo sistema visual para las 8 ---------- */
+  .kpi-grid{display:flex;flex-wrap:nowrap;gap:14px;margin-bottom:28px;overflow-x:auto;padding-bottom:4px;}
   .kpi-card{
-    border-radius:var(--radius);padding:14px 16px;position:relative;background:#fff;
-    box-shadow:var(--shadow-card);flex:1 0 150px;min-width:150px;
+    border-radius:var(--radius);padding:18px 20px;position:relative;background:#fff;
+    box-shadow:var(--shadow-card);border:1px solid var(--slate-100);flex:1 0 155px;min-width:155px;
   }
-  .kpi-card.tint .kpi-icon{background:rgba(255,255,255,.6);}
-  .kpi-card .kpi-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
+  .kpi-card .kpi-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;}
   .kpi-icon{
-    width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:none;
+    width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:none;
+    background:var(--kpi-icon-bg);color:var(--kpi-icon-fg);
   }
-  .kpi-icon svg{width:17px;height:17px;}
+  .kpi-icon svg{width:16px;height:16px;}
   .kpi-trend{
-    display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;
+    display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:99px;
   }
-  .kpi-trend.up{background:#e6f9ed;color:#16a34a;}
-  .kpi-trend.down{background:#fdeeec;color:#dc4c3f;}
-  .kpi-trend svg{width:10px;height:10px;}
-  .kpi-trend-caption{font-size:10px;color:var(--slate-400);text-align:right;margin-top:2px;}
-  .kpi-card .label{font-size:12px;color:var(--slate-600);margin-bottom:4px;font-weight:600;}
-  .kpi-card .value{font-size:22px;font-weight:700;color:var(--navy-950);letter-spacing:-.2px;}
-  .kpi-card .unit{font-size:12px;color:var(--slate-400);margin-left:3px;font-weight:600;}
-  .kpi-card .caption{font-size:11px;color:var(--slate-400);margin-top:5px;}
+  .kpi-trend.up{background:var(--green-bg);color:var(--green);}
+  .kpi-trend.down{background:#fdeeec;color:#c0432f;}
+  .kpi-trend svg{width:9px;height:9px;}
+  .kpi-card .label{font-size:11.5px;color:var(--slate-600);margin-bottom:6px;font-weight:600;letter-spacing:.01em;}
+  .kpi-card .value{font-size:26px;font-weight:700;color:var(--navy-950);letter-spacing:-.3px;line-height:1.1;}
+  .kpi-card .unit{font-size:12px;color:var(--slate-400);margin-left:4px;font-weight:600;}
+  .kpi-card .caption{font-size:11px;color:var(--slate-400);margin-top:6px;}
 
   /* ---------- Cards / panels ---------- */
-  .panel{background:#fff;border-radius:var(--radius);margin-bottom:22px;box-shadow:var(--shadow-card);}
-  .panel-head{padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+  .panel{background:#fff;border-radius:var(--radius);margin-bottom:26px;box-shadow:var(--shadow-card);border:1px solid var(--slate-100);}
+  .panel-head{padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
   .panel-head-left{display:flex;align-items:center;gap:10px;}
   .panel-head-left .ic{
     width:30px;height:30px;border-radius:9px;background:var(--teal-50);color:var(--teal-600);
     display:flex;align-items:center;justify-content:center;flex:none;
   }
   .panel-head-left .ic svg{width:15px;height:15px;}
-  .panel-head h2{font-size:14.5px;margin:0;font-weight:700;color:var(--navy-950);}
-  .panel-head .sub{font-size:11.5px;color:var(--slate-400);margin-top:1px;}
+  .panel-head h2{font-size:15.5px;margin:0;font-weight:700;color:var(--navy-950);}
+  .panel-head .sub{font-size:12px;color:var(--slate-400);margin-top:2px;}
   .panel-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-  .panel-body{padding:0 18px 18px 18px;}
+  .panel-body{padding:0 20px 20px 20px;}
 
   /* ---------- Tables ---------- */
   table{width:100%;border-collapse:collapse;font-size:13px;}
   th{
-    text-align:left;font-size:11px;color:var(--slate-400);font-weight:700;text-transform:uppercase;letter-spacing:.03em;
-    padding:10px 12px;border-bottom:1px solid var(--slate-100);white-space:nowrap;
+    text-align:left;font-size:10.5px;color:var(--slate-400);font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+    padding:11px 14px;border-bottom:1px solid var(--slate-100);white-space:nowrap;
   }
-  th .sort-ic{display:inline-block;margin-left:3px;opacity:.45;font-size:9px;vertical-align:middle;}
+  th .sort-ic{display:inline-block;margin-left:3px;opacity:.4;font-size:9px;vertical-align:middle;}
   th .sort-ic.active{opacity:1;color:var(--teal-600);}
   th.th-sort{cursor:pointer;user-select:none;}
   th.th-sort:hover{color:var(--slate-800);}
-  td{padding:11px 12px;border-bottom:1px solid var(--slate-100);white-space:nowrap;}
+  td{padding:12px 14px;border-bottom:1px solid var(--slate-50);white-space:nowrap;color:var(--slate-800);}
+  tbody tr:nth-child(even){background:#fafbfc;}
   tr:last-child td{border-bottom:none;}
-  td.num,th.num{text-align:right;}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
   .table-wrap{overflow-x:auto;}
-  .row-click{cursor:pointer;}
-  .row-click:hover{background:var(--slate-50);}
+  .row-click{cursor:pointer;transition:background .1s ease;}
+  .row-click:hover{background:var(--teal-50);}
   .row-chevron{color:var(--slate-400);}
   .row-chevron svg{width:15px;height:15px;}
+  .device-name{font-weight:600;color:var(--navy-950);}
 
   /* ---------- Pills / Badges ---------- */
   .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:700;}
@@ -199,9 +201,9 @@
   .badge.sin-cambios{background:var(--slate-100);color:var(--slate-600);}
   .badge.error{background:#fbe6e2;color:var(--red);}
   .badge.atipico{background:#fdf1da;color:var(--amber-dark);}
-  .pill-zona{display:inline-block;padding:3px 11px;border-radius:99px;font-size:11.5px;font-weight:600;background:var(--kpi-blue-bg);color:var(--kpi-blue-fg);}
+  .pill-zona{display:inline-block;padding:3px 11px;border-radius:99px;font-size:11.5px;font-weight:600;background:var(--teal-50);color:var(--teal-700);}
   .pill-estado{display:inline-block;padding:3px 11px;border-radius:99px;font-size:11.5px;font-weight:600;}
-  .pill-estado.activo{background:#e6f9ed;color:#16a34a;}
+  .pill-estado.activo{background:var(--green-bg);color:var(--green);}
   .pill-estado.inactivo{background:var(--slate-100);color:var(--slate-600);}
 
   /* ---------- Buttons ---------- */
@@ -488,67 +490,8 @@ function detectarEncabezados(rows){
   return mejor.matches >= 2 ? mejor : null; // dispositivo + al menos 1 campo más
 }
 
-// Detecta patentes partidas en 2 o 3 bloques por espacios y las une en un
-// solo token, para que nunca quede un dominio incompleto.
-//   Vieja  (pre-2016): LLL NNN        -> LLLNNN     ej "PKS 223"   -> "PKS223"
-//   Nueva  (2016+):    LL NNN LL      -> LLNNNLL    ej "AC 858 HC" -> "AC858HC"
-//                      LLNNN LL       -> LLNNNLL    ej "AC858 HC"  -> "AC858HC"
-//                      LL NNNLL       -> LLNNNLL    ej "AC 858HC"  -> "AC858HC"
-function juntarPatentePartida(parts){
-  const out = [];
-  let i = 0;
-  while(i < parts.length){
-    const a = parts[i], b = parts[i+1], c = parts[i+2];
-    // nueva en 3 bloques: LL + NNN + LL
-    if(a && b && c && /^[A-Z]{2}$/i.test(a) && /^\d{3}$/.test(b) && /^[A-Z]{2}$/i.test(c)){
-      out.push(a+b+c); i += 3; continue;
-    }
-    // nueva en 2 bloques: LLNNN + LL   ó   LL + NNNLL
-    if(a && b && (
-        (/^[A-Z]{2}\d{3}$/i.test(a) && /^[A-Z]{2}$/i.test(b)) ||
-        (/^[A-Z]{2}$/i.test(a) && /^\d{3}[A-Z]{2}$/i.test(b))
-      )){
-      out.push(a+b); i += 2; continue;
-    }
-    // vieja en 2 bloques: LLL + NNN
-    if(a && b && /^[A-Z]{3}$/i.test(a) && /^\d{3}$/.test(b)){
-      out.push(a+b); i += 2; continue;
-    }
-    out.push(a); i += 1;
-  }
-  return out;
-}
-
-function parseDispositivo(raw){
-  const txt = normalizarTextoConservandoMayus(raw);
-  let parts = txt.split(' ').filter(Boolean);
-  if(!parts.length) return { patente:null, modelo:null, zona:null };
-
-  const RE_MERCOSUR = /^[A-Z]{2}\d{3}[A-Z]{2}$/;   // patente 2016+, ej AC858HC
-  const RE_VIEJA    = /^[A-Z]{3}\d{3}$/;            // patente pre-2016, ej PKS223
-
-  // El archivo a veces trae la patente vieja partida por un espacio
-  // ("PKS 223" en vez de "PKS223"), o la 2016+ partida en sus 3 bloques
-  // ("AC 858 HC"). Se unen ANTES de buscar cuál token es la patente, para
-  // nunca quedarnos con el dominio incompleto (ej. solo "PKS").
-  parts = juntarPatentePartida(parts);
-
-  let patenteIdx = parts.findIndex(p => RE_MERCOSUR.test(p) || RE_VIEJA.test(p));
-  if(patenteIdx === -1) patenteIdx = 0; // fallback: primer token, como antes
-
-  const patente = parts[patenteIdx].toUpperCase();
-  const resto = parts.filter((_,i)=>i!==patenteIdx);
-
-  const zonas = getZonasConocidas();
-  let zona = null, modelo = resto.join(' ');
-  // probar match de zona de 3, 2 y 1 palabra (de más larga a más corta)
-  for(const n of [3,2,1]){
-    if(zona || resto.length < n) continue;
-    const ult = resto.slice(-n).join(' ').toUpperCase();
-    if(zonas.includes(ult)){ zona = ult; modelo = resto.slice(0,-n).join(' '); }
-  }
-  return { patente, modelo: modelo || null, zona };
-}
+// El identificador del vehículo ya no se parsea en patente/modelo/zona: se usa
+// el texto completo de "Dispositivo" tal cual viene en el reporte (ver parseExcel).
 function normalizarTextoConservandoMayus(raw){
   return String(raw||'').trim().replace(/\s+/g,' ');
 }
@@ -699,13 +642,16 @@ async function parseExcel(file){
 
   dataRows.forEach((r, i) => {
     const dispositivoRaw = r[mapa.dispositivo];
-    const { patente, modelo, zona } = parseDispositivo(dispositivoRaw);
+    // El identificador del vehículo es el texto de "Dispositivo" TAL CUAL viene
+    // en el reporte — no se intenta separar patente/modelo/zona. Si dos filas
+    // tienen el mismo texto exacto, son el mismo vehículo; si difieren en algo
+    // (una letra, un espacio, la zona incluida en el texto), se tratan como
+    // vehículos distintos — igual que agrupar por esa columna en una tabla
+    // dinámica de Excel.
+    const patente = normalizarTextoConservandoMayus(dispositivoRaw);
+    const modelo = null, zona = null;
     if(!patente){
-      errores.push({ fila: headerIdx+2+i, motivo:'No se pudo identificar el dispositivo/dominio', raw: dispositivoRaw });
-      return;
-    }
-    if(!/^[A-Z]{2}\d{3}[A-Z]{2}$/.test(patente) && !/^[A-Z]{3}\d{3}$/.test(patente)){
-      errores.push({ fila: headerIdx+2+i, motivo:`Dominio "${patente}" no coincide con ningún formato de patente válido (vieja: LLLNNN ej. PKS223, o 2016+: LLNNNLL ej. AC858HC)`, raw: dispositivoRaw });
+      errores.push({ fila: headerIdx+2+i, motivo:'La columna Dispositivo viene vacía en esta fila', raw: dispositivoRaw });
       return;
     }
     const fecha_inicio = mapa.fecha_inicio!==undefined ? parseFechaInicio(r[mapa.fecha_inicio]) : null;
@@ -837,16 +783,12 @@ function render(){
   });
   document.getElementById('topbar-actions').innerHTML = `
     <button class="btn btn-primary" id="btn-cargar-planilla">${icon('upload')} Cargar planilla</button>
-    <button class="icon-btn" id="btn-auditar" title="Auditar y reparar dominios corruptos">${icon('search')}</button>
-    <button class="icon-btn" id="btn-corregir" title="Corregir nombres de vehículos (zona/modelo)">${icon('fix')}</button>
     <button class="icon-btn" id="btn-refresh" title="Actualizar">${icon('refresh')}</button>
     <button class="icon-btn" id="btn-dots" title="Más opciones">${icon('dots')}</button>
     <button class="icon-btn" id="btn-install-icon" style="display:none" title="Instalar app">${icon('install')}</button>
   `;
   bindInstallButton();
   document.getElementById('btn-cargar-planilla').onclick = () => abrirModalImportar();
-  document.getElementById('btn-auditar').onclick = () => abrirAuditoriaDominios();
-  document.getElementById('btn-corregir').onclick = () => corregirNombresExistentes();
   document.getElementById('btn-refresh').onclick = () => renderView();
   document.getElementById('btn-dots').onclick = () => {
     const proceed = confirm('¿Cambiar la configuración de conexión a Supabase?');
@@ -1032,8 +974,8 @@ async function renderResumen(content){
   }
 
   const periodoSub = state.filters.periodo && state.filters.periodo.length===1
-    ? periodoLabelFromKey(state.filters.periodo[0])
-    : (state.filters.periodo && state.filters.periodo.length>1 ? `${state.filters.periodo.length} períodos seleccionados` : '');
+    ? `${periodoLabelFromKey(state.filters.periodo[0])} · ${fmtNum(k.vehiculosCount,0)} vehículos`
+    : (state.filters.periodo && state.filters.periodo.length>1 ? `${state.filters.periodo.length} períodos seleccionados · ${fmtNum(k.vehiculosCount,0)} vehículos` : `${fmtNum(k.vehiculosCount,0)} vehículos`);
 
   content.innerHTML = `
     ${filtersBar(opts, state.filters)}
@@ -1072,8 +1014,7 @@ async function renderResumen(content){
     document.getElementById('btn-export').onclick = () => exportarCSV(rows);
   }
 }
-const KPI_ACCENT = { blue:'#1B4079', teal:'#4D7C8A', violet:'#7F9C96', green:'#8FAD88', amber:'#C7DB94', rose:'#142f5c' };
-function kpiCard({label, dec, unit, iconName, tint, curr, prev, staticCaption, invert}){
+function kpiCard({label, dec, unit, iconName, curr, prev, staticCaption, invert}){
   let trendHtml = '', caption = staticCaption || '';
   if(prev!==undefined && prev!==null && curr!==undefined && curr!==null){
     const diff = curr - prev;
@@ -1086,9 +1027,9 @@ function kpiCard({label, dec, unit, iconName, tint, curr, prev, staticCaption, i
     caption = `${fmtNum(prev,dec)}${unit?' '+esc(unit):''} mes anterior`;
   }
   const value = curr!==undefined && curr!==null ? fmtNum(curr,dec) : '—';
-  return `<div class="kpi-card tint" style="border:2px solid ${KPI_ACCENT[tint]||'transparent'}">
+  return `<div class="kpi-card">
     <div class="kpi-top">
-      <span class="kpi-icon" style="background:var(--kpi-${tint}-bg);color:var(--kpi-${tint}-fg)">${icon(iconName)}</span>
+      <span class="kpi-icon">${icon(iconName)}</span>
       ${trendHtml}
     </div>
     <div class="label">${esc(label)}</div>
@@ -1154,7 +1095,7 @@ function tablaReportes(rows, activosSet){
         const nombre = r.dispositivo_original || nombreCompletoConZona(dominio, modelo, zona);
         return `<tr class="row-click" data-dominio="${esc(dominio)}">
         <td>${esc(r.periodo_label||'—')}</td>
-        <td><strong>${esc(nombre||'—')}</strong>${r.es_atipico?' <span class="badge atipico">⚠</span>':''}</td>
+        <td><span class="device-name">${esc(nombre||'—')}</span>${r.es_atipico?' <span class="badge atipico">⚠</span>':''}</td>
         <td class="num">${fmtNum(r.distancia_km,0)}</td>
         <td class="num">${fmtNum(r.litros_ypf,1)}</td>
         <td class="num">${(r.litros_ypf && r.distancia_km)? fmtNum(r.distancia_km/r.litros_ypf,2) : '—'}</td>
@@ -1217,176 +1158,6 @@ function exportarCSV(rows){
   URL.revokeObjectURL(url);
 }
 
-// Re-separa zona/modelo en registros ya guardados, usando la lista de zonas
-// conocida ACTUAL (útil cuando se importó antes de que alguna zona nueva
-// estuviera reconocida, y quedó pegada dentro del modelo). No toca el
-// dominio ni crea/borra vehículos — solo redistribuye texto entre
-// label/region (vehiculos) y modelo_periodo/zona_periodo (gps_reportes).
-function reseparzarZona(texto){
-  if(!texto) return null;
-  const partes = String(texto).trim().split(/\s+/);
-  const zonas = getZonasConocidas();
-  for(const n of [3,2,1]){
-    if(partes.length < n) continue;
-    const ult = partes.slice(-n).join(' ').toUpperCase();
-    if(zonas.includes(ult)) return { modelo: partes.slice(0,-n).join(' ') || null, zona: ult };
-  }
-  return null;
-}
-async function corregirNombresExistentes(){
-  const proceed = await confirmModal(
-    'Corregir nombres existentes',
-    'Va a revisar todos los vehículos y reportes ya guardados, y separar la zona del modelo en los que quedaron pegados (usando las zonas conocidas hasta ahora: ' + getZonasConocidas().join(', ') + '). No borra ni crea vehículos, solo reordena texto.',
-    'Corregir'
-  );
-  if(!proceed) return;
-
-  let corregidosVehiculos = 0, corregidosReportes = 0;
-  const vehiculos = await sbSelect('vehiculos','*');
-  for(const v of vehiculos){
-    const r = reseparzarZona(v.label);
-    if(r && (r.zona !== v.region || r.modelo !== v.label)){
-      await state.sb.from('vehiculos').update({ label: r.modelo, region: r.zona }).eq('dominio', v.dominio);
-      corregidosVehiculos++;
-    }
-  }
-  const reportes = await sbSelect('gps_reportes','id, modelo_periodo, zona_periodo');
-  for(const rep of reportes){
-    const r = reseparzarZona(rep.modelo_periodo);
-    if(r && (r.zona !== rep.zona_periodo || r.modelo !== rep.modelo_periodo)){
-      await state.sb.from('gps_reportes').update({ modelo_periodo: r.modelo, zona_periodo: r.zona }).eq('id', rep.id);
-      corregidosReportes++;
-    }
-  }
-  toast(`Corregidos: ${corregidosVehiculos} vehículos, ${corregidosReportes} reportes.`, 'success');
-  renderView();
-}
-
-/* =========================================================================
-   AUDITORÍA Y REPARACIÓN DE DOMINIOS
-   Detecta vehiculos.dominio corrupto (con el texto completo del Excel en vez
-   de solo la patente, o truncado a la primera palabra) y arma una
-   PREVISUALIZACIÓN de cómo quedaría antes de tocar nada.
-   ========================================================================= */
-const RE_PATENTE_VIEJA = /^[A-Z]{3}\d{3}$/;
-const RE_PATENTE_NUEVA = /^[A-Z]{2}\d{3}[A-Z]{2}$/;
-function esDominioValido(d){
-  if(!d) return false;
-  const s = d.trim().toUpperCase();
-  return RE_PATENTE_VIEJA.test(s) || RE_PATENTE_NUEVA.test(s);
-}
-// texto de donde volver a extraer la patente: si el dominio ya tiene varias
-// palabras, seguro contiene el texto completo original. Si es una sola
-// palabra corta (ej "PKS", "MXZ") es un fragmento — hay que completarlo con
-// lo que haya quedado en "label", donde suele estar el resto (ej "222 FIORINO...").
-function textoParaReextraer(v){
-  const partes = (v.dominio||'').trim().split(/\s+/);
-  if(partes.length > 1) return v.dominio;
-  return ((v.dominio||'') + ' ' + (v.label||'')).trim();
-}
-async function auditarDominios(){
-  const vehiculos = await sbSelect('vehiculos','*');
-  const dominiosValidos = new Set(vehiculos.filter(v=>esDominioValido(v.dominio)).map(v=>v.dominio.trim().toUpperCase()));
-  const propuestas = [];
-  for(const v of vehiculos){
-    if(esDominioValido(v.dominio)) continue; // ya está bien, no se toca
-    const { patente, modelo, zona } = parseDispositivo(textoParaReextraer(v));
-    if(!patente || !esDominioValido(patente)){
-      propuestas.push({ dominioViejo:v.dominio, dominioNuevo:null, modelo:null, zona:null, accion:'revisar_manual' });
-      continue;
-    }
-    const accion = dominiosValidos.has(patente) ? 'fusionar' : 'renombrar';
-    dominiosValidos.add(patente); // para que la próxima fila que resuelva al mismo dominio se marque "fusionar"
-    propuestas.push({ dominioViejo:v.dominio, dominioNuevo:patente, modelo: modelo||v.label||null, zona: zona||v.region||null, accion });
-  }
-  return propuestas;
-}
-async function ejecutarReparacionDominios(propuestas){
-  let vehiculosArreglados=0, reportesMovidos=0, reportesEliminados=0, errores=0;
-  for(const p of propuestas){
-    if(!p.dominioNuevo) continue;
-    try{
-      const { data: existente } = await state.sb.from('vehiculos').select('dominio,label,region').eq('dominio', p.dominioNuevo).maybeSingle();
-      if(!existente){
-        await state.sb.from('vehiculos').insert({ dominio: p.dominioNuevo, label: p.modelo, region: p.zona });
-      }else{
-        const patch = {};
-        if(!existente.label && p.modelo) patch.label = p.modelo;
-        if(!existente.region && p.zona) patch.region = p.zona;
-        if(Object.keys(patch).length) await state.sb.from('vehiculos').update(patch).eq('dominio', p.dominioNuevo);
-      }
-      const { data: reportesViejos } = await state.sb.from('gps_reportes').select('id, periodo').eq('vehiculo_dominio', p.dominioViejo);
-      for(const r of (reportesViejos||[])){
-        const { data: conflicto } = await state.sb.from('gps_reportes').select('id').eq('vehiculo_dominio', p.dominioNuevo).eq('periodo', r.periodo).maybeSingle();
-        if(conflicto){ await state.sb.from('gps_reportes').delete().eq('id', r.id); reportesEliminados++; }
-        else{ await state.sb.from('gps_reportes').update({ vehiculo_dominio: p.dominioNuevo }).eq('id', r.id); reportesMovidos++; }
-      }
-      await state.sb.from('vehiculos').delete().eq('dominio', p.dominioViejo);
-      vehiculosArreglados++;
-    }catch(e){ console.error(e); errores++; }
-  }
-  return { vehiculosArreglados, reportesMovidos, reportesEliminados, errores };
-}
-async function abrirAuditoriaDominios(){
-  const bg = document.createElement('div');
-  bg.className = 'modal-bg';
-  bg.innerHTML = `<div class="modal" style="width:720px;max-width:95vw;max-height:88vh;overflow-y:auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <h3 style="margin:0">Auditoría de dominios</h3>
-      <button class="icon-btn" id="audit-close">${icon('close')}</button>
-    </div>
-    <div id="audit-body"><div class="empty"><span class="spin"></span> Analizando vehículos…</div></div>
-  </div>`;
-  document.body.appendChild(bg);
-  document.getElementById('audit-close').onclick = () => bg.remove();
-  bg.addEventListener('click', (e)=>{ if(e.target===bg) bg.remove(); });
-
-  const propuestas = await auditarDominios();
-  const body = document.getElementById('audit-body');
-  const renombrar = propuestas.filter(p=>p.accion==='renombrar');
-  const fusionar = propuestas.filter(p=>p.accion==='fusionar');
-  const manual = propuestas.filter(p=>p.accion==='revisar_manual');
-
-  if(!propuestas.length){
-    body.innerHTML = `<div class="empty">No se encontraron dominios corruptos. Todo está bien formado.</div>`;
-    return;
-  }
-
-  body.innerHTML = `
-    <p class="muted">Se revisaron todos los vehículos y se detectaron <strong>${propuestas.length}</strong> con el dominio mal guardado (texto completo del Excel en vez de solo la patente, o truncado).</p>
-    <div class="summary-strip">
-      <div class="summary-pill"><div class="n" style="color:var(--amber-dark)">${renombrar.length}</div><div class="l">Renombrar</div></div>
-      <div class="summary-pill"><div class="n" style="color:var(--kpi-blue-fg)">${fusionar.length}</div><div class="l">Fusionar con uno ya existente</div></div>
-      <div class="summary-pill"><div class="n" style="color:var(--red)">${manual.length}</div><div class="l">Revisar a mano</div></div>
-    </div>
-    <div class="table-wrap" style="max-height:360px;overflow-y:auto">
-      <table>
-        <thead><tr><th>Dominio actual</th><th>Acción</th><th>Quedaría como</th></tr></thead>
-        <tbody>
-          ${propuestas.map(p=>`<tr>
-            <td>${esc(p.dominioViejo)}</td>
-            <td>${p.accion==='renombrar'?'<span class="badge actualizar">Renombrar</span>':p.accion==='fusionar'?'<span class="badge nuevo">Fusionar</span>':'<span class="badge error">Revisar a mano</span>'}</td>
-            <td>${p.dominioNuevo?esc(p.dominioNuevo)+(p.modelo?' — '+esc(p.modelo):'')+(p.zona?' · '+esc(p.zona):''):'<span class="muted">no se pudo determinar</span>'}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-    <p class="muted" style="margin-top:10px">"Fusionar" significa que ya existe un vehículo con el dominio correcto — sus reportes se pasan ahí (sin duplicar períodos) y el registro corrupto se borra. "Renombrar" crea el vehículo correcto (si no existía) y mueve todo ahí. Los que digan "Revisar a mano" no se tocan.</p>
-    <div style="display:flex;gap:10px;margin-top:16px">
-      <button class="btn btn-secondary" id="audit-cancel">Cancelar</button>
-      <button class="btn btn-primary" id="audit-confirm" ${renombrar.length+fusionar.length===0?'disabled':''}>Aplicar reparación (${renombrar.length+fusionar.length})</button>
-    </div>
-  `;
-  document.getElementById('audit-cancel').onclick = () => bg.remove();
-  document.getElementById('audit-confirm').onclick = async () => {
-    const btn = document.getElementById('audit-confirm');
-    btn.disabled = true; btn.textContent = 'Reparando…';
-    const resultado = await ejecutarReparacionDominios([...renombrar, ...fusionar]);
-    bg.remove();
-    toast(`Reparados ${resultado.vehiculosArreglados} vehículos · ${resultado.reportesMovidos} reportes movidos · ${resultado.reportesEliminados} duplicados eliminados${resultado.errores?` · ${resultado.errores} errores`:''}`, resultado.errores?'error':'success');
-    renderView();
-  };
-}
 async function renderVehiculoDetalle(content, vehiculoDominio){
   const [vehiculo] = await sbSelect('vehiculos', '*', { dominio: vehiculoDominio });
   const reportes = await sbSelect('gps_reportes', '*', { vehiculo_dominio: vehiculoDominio });
