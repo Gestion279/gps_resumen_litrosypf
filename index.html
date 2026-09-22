@@ -837,6 +837,7 @@ function render(){
   });
   document.getElementById('topbar-actions').innerHTML = `
     <button class="btn btn-primary" id="btn-cargar-planilla">${icon('upload')} Cargar planilla</button>
+    <button class="icon-btn" id="btn-auditar" title="Auditar y reparar dominios corruptos">${icon('search')}</button>
     <button class="icon-btn" id="btn-corregir" title="Corregir nombres de vehículos (zona/modelo)">${icon('fix')}</button>
     <button class="icon-btn" id="btn-refresh" title="Actualizar">${icon('refresh')}</button>
     <button class="icon-btn" id="btn-dots" title="Más opciones">${icon('dots')}</button>
@@ -844,6 +845,7 @@ function render(){
   `;
   bindInstallButton();
   document.getElementById('btn-cargar-planilla').onclick = () => abrirModalImportar();
+  document.getElementById('btn-auditar').onclick = () => abrirAuditoriaDominios();
   document.getElementById('btn-corregir').onclick = () => corregirNombresExistentes();
   document.getElementById('btn-refresh').onclick = () => renderView();
   document.getElementById('btn-dots').onclick = () => {
@@ -1258,6 +1260,132 @@ async function corregirNombresExistentes(){
   }
   toast(`Corregidos: ${corregidosVehiculos} vehículos, ${corregidosReportes} reportes.`, 'success');
   renderView();
+}
+
+/* =========================================================================
+   AUDITORÍA Y REPARACIÓN DE DOMINIOS
+   Detecta vehiculos.dominio corrupto (con el texto completo del Excel en vez
+   de solo la patente, o truncado a la primera palabra) y arma una
+   PREVISUALIZACIÓN de cómo quedaría antes de tocar nada.
+   ========================================================================= */
+const RE_PATENTE_VIEJA = /^[A-Z]{3}\d{3}$/;
+const RE_PATENTE_NUEVA = /^[A-Z]{2}\d{3}[A-Z]{2}$/;
+function esDominioValido(d){
+  if(!d) return false;
+  const s = d.trim().toUpperCase();
+  return RE_PATENTE_VIEJA.test(s) || RE_PATENTE_NUEVA.test(s);
+}
+// texto de donde volver a extraer la patente: si el dominio ya tiene varias
+// palabras, seguro contiene el texto completo original. Si es una sola
+// palabra corta (ej "PKS", "MXZ") es un fragmento — hay que completarlo con
+// lo que haya quedado en "label", donde suele estar el resto (ej "222 FIORINO...").
+function textoParaReextraer(v){
+  const partes = (v.dominio||'').trim().split(/\s+/);
+  if(partes.length > 1) return v.dominio;
+  return ((v.dominio||'') + ' ' + (v.label||'')).trim();
+}
+async function auditarDominios(){
+  const vehiculos = await sbSelect('vehiculos','*');
+  const dominiosValidos = new Set(vehiculos.filter(v=>esDominioValido(v.dominio)).map(v=>v.dominio.trim().toUpperCase()));
+  const propuestas = [];
+  for(const v of vehiculos){
+    if(esDominioValido(v.dominio)) continue; // ya está bien, no se toca
+    const { patente, modelo, zona } = parseDispositivo(textoParaReextraer(v));
+    if(!patente || !esDominioValido(patente)){
+      propuestas.push({ dominioViejo:v.dominio, dominioNuevo:null, modelo:null, zona:null, accion:'revisar_manual' });
+      continue;
+    }
+    const accion = dominiosValidos.has(patente) ? 'fusionar' : 'renombrar';
+    dominiosValidos.add(patente); // para que la próxima fila que resuelva al mismo dominio se marque "fusionar"
+    propuestas.push({ dominioViejo:v.dominio, dominioNuevo:patente, modelo: modelo||v.label||null, zona: zona||v.region||null, accion });
+  }
+  return propuestas;
+}
+async function ejecutarReparacionDominios(propuestas){
+  let vehiculosArreglados=0, reportesMovidos=0, reportesEliminados=0, errores=0;
+  for(const p of propuestas){
+    if(!p.dominioNuevo) continue;
+    try{
+      const { data: existente } = await state.sb.from('vehiculos').select('dominio,label,region').eq('dominio', p.dominioNuevo).maybeSingle();
+      if(!existente){
+        await state.sb.from('vehiculos').insert({ dominio: p.dominioNuevo, label: p.modelo, region: p.zona });
+      }else{
+        const patch = {};
+        if(!existente.label && p.modelo) patch.label = p.modelo;
+        if(!existente.region && p.zona) patch.region = p.zona;
+        if(Object.keys(patch).length) await state.sb.from('vehiculos').update(patch).eq('dominio', p.dominioNuevo);
+      }
+      const { data: reportesViejos } = await state.sb.from('gps_reportes').select('id, periodo').eq('vehiculo_dominio', p.dominioViejo);
+      for(const r of (reportesViejos||[])){
+        const { data: conflicto } = await state.sb.from('gps_reportes').select('id').eq('vehiculo_dominio', p.dominioNuevo).eq('periodo', r.periodo).maybeSingle();
+        if(conflicto){ await state.sb.from('gps_reportes').delete().eq('id', r.id); reportesEliminados++; }
+        else{ await state.sb.from('gps_reportes').update({ vehiculo_dominio: p.dominioNuevo }).eq('id', r.id); reportesMovidos++; }
+      }
+      await state.sb.from('vehiculos').delete().eq('dominio', p.dominioViejo);
+      vehiculosArreglados++;
+    }catch(e){ console.error(e); errores++; }
+  }
+  return { vehiculosArreglados, reportesMovidos, reportesEliminados, errores };
+}
+async function abrirAuditoriaDominios(){
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal" style="width:720px;max-width:95vw;max-height:88vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3 style="margin:0">Auditoría de dominios</h3>
+      <button class="icon-btn" id="audit-close">${icon('close')}</button>
+    </div>
+    <div id="audit-body"><div class="empty"><span class="spin"></span> Analizando vehículos…</div></div>
+  </div>`;
+  document.body.appendChild(bg);
+  document.getElementById('audit-close').onclick = () => bg.remove();
+  bg.addEventListener('click', (e)=>{ if(e.target===bg) bg.remove(); });
+
+  const propuestas = await auditarDominios();
+  const body = document.getElementById('audit-body');
+  const renombrar = propuestas.filter(p=>p.accion==='renombrar');
+  const fusionar = propuestas.filter(p=>p.accion==='fusionar');
+  const manual = propuestas.filter(p=>p.accion==='revisar_manual');
+
+  if(!propuestas.length){
+    body.innerHTML = `<div class="empty">No se encontraron dominios corruptos. Todo está bien formado.</div>`;
+    return;
+  }
+
+  body.innerHTML = `
+    <p class="muted">Se revisaron todos los vehículos y se detectaron <strong>${propuestas.length}</strong> con el dominio mal guardado (texto completo del Excel en vez de solo la patente, o truncado).</p>
+    <div class="summary-strip">
+      <div class="summary-pill"><div class="n" style="color:var(--amber-dark)">${renombrar.length}</div><div class="l">Renombrar</div></div>
+      <div class="summary-pill"><div class="n" style="color:var(--kpi-blue-fg)">${fusionar.length}</div><div class="l">Fusionar con uno ya existente</div></div>
+      <div class="summary-pill"><div class="n" style="color:var(--red)">${manual.length}</div><div class="l">Revisar a mano</div></div>
+    </div>
+    <div class="table-wrap" style="max-height:360px;overflow-y:auto">
+      <table>
+        <thead><tr><th>Dominio actual</th><th>Acción</th><th>Quedaría como</th></tr></thead>
+        <tbody>
+          ${propuestas.map(p=>`<tr>
+            <td>${esc(p.dominioViejo)}</td>
+            <td>${p.accion==='renombrar'?'<span class="badge actualizar">Renombrar</span>':p.accion==='fusionar'?'<span class="badge nuevo">Fusionar</span>':'<span class="badge error">Revisar a mano</span>'}</td>
+            <td>${p.dominioNuevo?esc(p.dominioNuevo)+(p.modelo?' — '+esc(p.modelo):'')+(p.zona?' · '+esc(p.zona):''):'<span class="muted">no se pudo determinar</span>'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="margin-top:10px">"Fusionar" significa que ya existe un vehículo con el dominio correcto — sus reportes se pasan ahí (sin duplicar períodos) y el registro corrupto se borra. "Renombrar" crea el vehículo correcto (si no existía) y mueve todo ahí. Los que digan "Revisar a mano" no se tocan.</p>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn btn-secondary" id="audit-cancel">Cancelar</button>
+      <button class="btn btn-primary" id="audit-confirm" ${renombrar.length+fusionar.length===0?'disabled':''}>Aplicar reparación (${renombrar.length+fusionar.length})</button>
+    </div>
+  `;
+  document.getElementById('audit-cancel').onclick = () => bg.remove();
+  document.getElementById('audit-confirm').onclick = async () => {
+    const btn = document.getElementById('audit-confirm');
+    btn.disabled = true; btn.textContent = 'Reparando…';
+    const resultado = await ejecutarReparacionDominios([...renombrar, ...fusionar]);
+    bg.remove();
+    toast(`Reparados ${resultado.vehiculosArreglados} vehículos · ${resultado.reportesMovidos} reportes movidos · ${resultado.reportesEliminados} duplicados eliminados${resultado.errores?` · ${resultado.errores} errores`:''}`, resultado.errores?'error':'success');
+    renderView();
+  };
 }
 async function renderVehiculoDetalle(content, vehiculoDominio){
   const [vehiculo] = await sbSelect('vehiculos', '*', { dominio: vehiculoDominio });
