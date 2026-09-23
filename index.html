@@ -95,13 +95,32 @@
   .content{padding:24px 28px 60px 28px;flex:1;}
 
   /* ---------- Tabs (reemplazan al sidebar) ---------- */
-  .tabbar{display:flex;gap:2px;background:#fff;border-bottom:1px solid var(--slate-200);padding:0 26px;overflow-x:auto;}
-  .tab-item{
-    padding:13px 16px;font-size:13.5px;font-weight:600;color:var(--slate-600);background:none;border:none;
-    border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap;
+  /* Pestañas estilo "carpeta": izquierda redondeada, derecha en diagonal,
+     superpuestas. Colores del diseño: activa en verde (el mismo del botón
+     "Cargar planilla"), inactivas en blanco con contorno verde. */
+  .tabbar{
+    display:flex;align-items:flex-end;gap:0;padding:10px 26px 0 22px;overflow-x:auto;overflow-y:hidden;
+    background:#fff;border-bottom:2px solid var(--teal-600);scrollbar-width:thin;
   }
-  .tab-item:hover{color:var(--navy-950);}
-  .tab-item.active{color:var(--teal-600);border-bottom-color:var(--teal-600);}
+  .tab-item{
+    position:relative;z-index:1;flex:none;
+    padding:8px 30px 7px 16px;margin-right:-10px;margin-bottom:0;
+    font-size:13px;font-weight:600;color:var(--teal-700);background:none;border:none;white-space:nowrap;
+    transition:color .12s ease;
+  }
+  .tab-item::before, .tab-item::after{
+    content:'';position:absolute;top:0;bottom:0;background:#fff;
+    border:1px solid var(--teal-600);border-bottom:none;transition:background .12s ease;
+  }
+  /* mitad izquierda: borde vertical y esquina redondeada */
+  .tab-item::before{z-index:-1;left:0;right:21px;border-right:none;border-radius:6px 0 0 0;}
+  /* mitad derecha: inclinada */
+  .tab-item::after{z-index:-2;right:6px;width:30px;border-left:none;border-radius:0 5px 0 0;transform:skewX(24deg);transform-origin:bottom;}
+  .tab-item:hover{z-index:2;}
+  .tab-item:hover::before, .tab-item:hover::after{background:var(--teal-50);}
+  .tab-item.active{color:#fff;font-weight:700;z-index:3;padding-top:9px;}
+  .tab-item.active::before, .tab-item.active::after{background:var(--teal-600);border-color:var(--teal-600);}
+  .tab-item:focus-visible{outline:2px solid var(--teal-700);outline-offset:-4px;border-radius:6px;}
 
   /* ---------- Filters: selectores refinados, altura uniforme ---------- */
   .filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px;}
@@ -472,7 +491,8 @@
     .content{padding:16px 14px 30px 14px;}
     .topbar{padding:14px 16px;position:sticky;top:0;z-index:10;padding-top:calc(14px + env(safe-area-inset-top,0px));}
     .topbar h1{font-size:15px;}
-    .tabbar{padding:0 16px;position:sticky;top:57px;z-index:9;}
+    .tabbar{padding:8px 16px 0 12px;position:sticky;top:57px;z-index:9;}
+    .tab-item{font-size:12.5px;padding:7px 26px 6px 13px;}
     .filters{gap:7px;}
     .filter-pill select{min-width:0;width:110px;}
     .kpi-card{padding:10px 11px;flex-basis:104px;min-width:104px;}
@@ -1070,6 +1090,9 @@ function render(){
   document.querySelectorAll('.tab-item[data-view]').forEach(b=>{
     b.onclick = () => { state.view = b.dataset.view; state._vehiculoSel = null; render(); };
   });
+  // En pantallas angostas, la pestaña activa queda siempre a la vista.
+  const tabActiva = document.querySelector('.tab-item.active');
+  if(tabActiva){ const bar = tabActiva.parentElement; bar.scrollLeft = Math.max(0, tabActiva.offsetLeft - (bar.clientWidth - tabActiva.offsetWidth) / 2); }
   document.getElementById('topbar-actions').innerHTML = `
     <button class="btn btn-primary" id="btn-cargar-planilla">${icon('upload')} Cargar planilla</button>
     <button class="icon-btn" id="btn-refresh" title="Actualizar datos desde Supabase">${icon('refresh')}</button>
