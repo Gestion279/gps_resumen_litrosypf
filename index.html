@@ -223,7 +223,8 @@
   .ind-grid .panel-head{padding:18px 22px 14px 22px;align-items:flex-start;}
   .ind-grid .panel-head-left{align-items:flex-start;gap:12px;}
   .ind-grid .panel-head-left .ic{width:32px;height:32px;border-radius:9px;margin-top:1px;}
-  .ind-grid .panel-head-left .ic.ic-amber{background:#fdf5e3;color:var(--amber-dark);}
+  .ind-grid .panel-head-left .ic.ic-amber{background:#eef3ef;color:#5d7358;}
+  .ind-grid .panel-head-left .ic.ic-kml{background:#eef3f4;color:#3c6470;}
   .ind-grid .panel-head h2{font-size:15px;font-weight:700;color:var(--navy-950);letter-spacing:-.1px;line-height:1.3;}
   .ind-grid .panel-head .sub{font-size:11.5px;color:var(--slate-400);margin-top:2px;font-weight:500;}
   .ind-grid .panel-head-actions .btn{padding:7px 14px;font-size:12.5px;}
@@ -237,8 +238,9 @@
   .panel-graf .panel-head .sub{font-size:11.5px;color:var(--slate-400);margin-top:2px;font-weight:500;}
   .panel-graf .panel-body{padding:4px 22px 18px 22px;}
   .panel-graf .graf-area{height:270px;}
-  .ic.ic-blue{background:#eaf1fb;color:#2f67ad;}
-  .ic.ic-orange{background:#fdefe3;color:#c46a24;}
+  /* Íconos de los gráficos, en tonos de la paleta de barras */
+  .ic.ic-blue{background:#e8edf5;color:#1b4079;}
+  .ic.ic-orange{background:#eff3f2;color:#5b7571;}
 
   /* Gráficos: hover discreto sobre la barra (el valor exacto sigue en el tooltip) */
   .bar-chart rect.bar{transition:opacity .12s ease;}
@@ -1319,7 +1321,7 @@ async function renderKmRecorridos(content){
       <div class="panel-body"><div class="graf-area">${pivot.periodos.length ? miniBarChart(
         pivot.periodos.map(periodoLabelCompacta),
         pivot.periodos.map(p=>pivot.totalPorPeriodo[p]||0),
-        { ...GRAF_ANCHO_COMPLETO, color:'#3b78c2', decValores:0, titulos:pivot.periodos.map(periodoLabelCorta) }
+        { ...GRAF_ANCHO_COMPLETO, color:PALETA_GRAF.km, decValores:0, titulos:pivot.periodos.map(periodoLabelCorta) }
       ) : `<div class="empty">No hay datos para estos filtros todavía.</div>`}</div></div>
     </div>
     <div class="panel">
@@ -1368,7 +1370,7 @@ async function renderLitrosConsumidos(content){
       <div class="panel-body"><div class="graf-area">${pivotLitros.periodos.length ? miniBarChart(
         pivotLitros.periodos.map(periodoLabelCompacta),
         pivotLitros.periodos.map(p=>pivotLitros.totalPorPeriodo[p]||0),
-        { ...GRAF_ANCHO_COMPLETO, color:'#e8893a', decValores:0, decTooltip:1, titulos:pivotLitros.periodos.map(periodoLabelCorta) }
+        { ...GRAF_ANCHO_COMPLETO, color:PALETA_GRAF.litros, decValores:0, decTooltip:1, titulos:pivotLitros.periodos.map(periodoLabelCorta) }
       ) : `<div class="empty">No hay datos para estos filtros todavía.</div>`}</div></div>
     </div>
     <div class="panel">
@@ -1430,19 +1432,19 @@ async function renderIndicadores(content){
     <div class="ind-grid">
       <div class="panel">
         <div class="panel-head">
-          <div class="panel-head-left"><span class="ic">${icon('gauge')}</span><div><h2>Km por litro</h2><div class="sub">Promedio de la flota por mes</div></div></div>
+          <div class="panel-head-left"><span class="ic ic-kml">${icon('gauge')}</span><div><h2>Km por litro</h2><div class="sub">Promedio de la flota por mes</div></div></div>
         </div>
-        <div class="panel-body"><div class="ind-chart">${hayDatos ? miniBarChart(labels, pivotKml.periodos.map(p=>pivotKml.totalPorPeriodo[p]||0), {...chartOpts, color:'#20b5a2', decTicks:1, decValores:2}) : vacio}</div></div>
+        <div class="panel-body"><div class="ind-chart">${hayDatos ? miniBarChart(labels, pivotKml.periodos.map(p=>pivotKml.totalPorPeriodo[p]||0), {...chartOpts, color:PALETA_GRAF.kml, decTicks:1, decValores:2}) : vacio}</div></div>
       </div>
       <div class="panel">
         <div class="panel-head">
           <div class="panel-head-left"><span class="ic ic-amber">${icon('fuel')}</span><div><h2>Litros cada 100 km</h2><div class="sub">Promedio de la flota por mes</div></div></div>
         </div>
-        <div class="panel-body"><div class="ind-chart">${hayDatos ? miniBarChart(labels, pivotL100.periodos.map(p=>pivotL100.totalPorPeriodo[p]||0), {...chartOpts, color:'#e6a91b', decTicks:1, decValores:1}) : vacio}</div></div>
+        <div class="panel-body"><div class="ind-chart">${hayDatos ? miniBarChart(labels, pivotL100.periodos.map(p=>pivotL100.totalPorPeriodo[p]||0), {...chartOpts, color:PALETA_GRAF.l100, decTicks:1, decValores:1}) : vacio}</div></div>
       </div>
       <div class="panel">
         <div class="panel-head">
-          <div class="panel-head-left"><span class="ic">${icon('gauge')}</span><div><h2>Km por litro</h2><div class="sub">Por dispositivo y mes</div></div></div>
+          <div class="panel-head-left"><span class="ic ic-kml">${icon('gauge')}</span><div><h2>Km por litro</h2><div class="sub">Por dispositivo y mes</div></div></div>
           <div class="panel-head-actions"><button class="btn btn-secondary" id="kml-export">${icon('download')} Exportar</button></div>
         </div>
         <div class="pivot-scroll" id="kml-tabla">${hayDatos ? pivotTableHtml(pivotKml,{decimales:2, etiquetaPeriodo:periodoLabelCompacta}) : vacio}</div>
@@ -1491,6 +1493,14 @@ async function renderIndicadores(content){
 // Gráfico de barras propio, en SVG inline — no depende de que la librería
 // Chart.js externa haya cargado (evita el "Chart is not defined" si el CDN
 // está bloqueado o tarda), y queda igual de liviano y responsive.
+// Paleta de las barras de los gráficos
+const PALETA_GRAF = {
+  km:     '#1B4079', // Km recorridos
+  litros: '#7F9C96', // Litros consumidos
+  kml:    '#4D7C8A', // Km por litro (Indicadores)
+  l100:   '#8FAD88', // Litros cada 100 km (Indicadores)
+};
+
 // Gráficos que ocupan todo el ancho (Km recorridos y Litros consumidos):
 // mismo eje adaptativo, valores sobre las barras y ancho de barra que Indicadores.
 const GRAF_ANCHO_COMPLETO = { w:1200, h:270, mostrarValores:true, ejeAdaptativo:true, anchoMaxBarra:46, decTicks:0 };
