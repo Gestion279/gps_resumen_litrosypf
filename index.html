@@ -94,6 +94,29 @@
   .icon-btn svg{width:16px;height:16px;}
   .content{padding:24px 28px 60px 28px;flex:1;}
 
+  /* ---------- Filtro maestro (arriba de las pestañas) ---------- */
+  .master-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 28px 4px 28px;background:#fff;}
+  .master-search{
+    position:relative;display:flex;align-items:center;flex:1 1 360px;max-width:560px;height:38px;padding:0 6px 0 13px;
+    border:1px solid var(--slate-200);border-radius:var(--radius-sm);background:#fff;transition:border-color .12s ease, box-shadow .12s ease;
+  }
+  .master-search > svg{width:15px;height:15px;color:var(--slate-400);flex:none;}
+  .master-search input{flex:1;min-width:0;border:none;background:transparent;padding:0 8px;font-size:13px;color:var(--slate-800);}
+  .master-search input:focus{outline:none;}
+  .master-search:focus-within{border-color:var(--teal-600);box-shadow:0 0 0 3px rgba(15,157,139,.12);}
+  .master-clear{display:none;width:26px;height:26px;border:none;background:none;border-radius:6px;color:var(--slate-400);align-items:center;justify-content:center;flex:none;}
+  .master-clear:hover{background:var(--slate-50);color:var(--slate-800);}
+  .master-clear svg{width:13px;height:13px;}
+  .master-hint{font-size:12px;color:var(--slate-400);white-space:nowrap;}
+  .master-bar.activo .master-search{border-color:var(--teal-600);background:var(--teal-50);}
+  .master-bar.activo .master-search > svg{color:var(--teal-600);}
+  .master-bar.activo .master-clear{display:inline-flex;}
+  .master-bar.activo .master-hint{color:var(--teal-700);font-weight:600;}
+  @media (max-width: 780px){
+    .master-bar{padding:8px 16px 2px 16px;}
+    .master-hint{display:none;}
+  }
+
   /* ---------- Tabs (reemplazan al sidebar) ---------- */
   /* Pestañas estilo "carpeta": izquierda redondeada, derecha en diagonal,
      superpuestas. Colores del diseño: activa en verde (el mismo del botón
@@ -1017,7 +1040,44 @@ const cacheDatos = { reportes:null, vehiculos:null, promesa:null, cargadoEn:null
 function invalidarCacheDatos(){
   cacheDatos.reportes = null; cacheDatos.vehiculos = null; cacheDatos.promesa = null; cacheDatos.cargadoEn = null;
 }
+/* ---------------------------------------------------------------------
+   FILTRO MAESTRO — buscador de texto arriba de las pestañas.
+   Filtra TODAS las hojas: cada una busca el texto en los campos que tiene
+   (GPS: dispositivo, patente, modelo, zona, período · YPF: fecha, ID
+   tarjeta, conductor, establecimiento, provincia y, si la patente existe
+   en el GPS, también su modelo y zona). Sin tildes ni mayúsculas, y la
+   patente se encuentra con o sin espacio ("PLJ 988" = "PLJ988").
+   --------------------------------------------------------------------- */
+function crearMatcherMaestro(texto){
+  const q = normalizarTexto(texto);
+  if(!q) return null;
+  const qJunto = q.replace(/\s+/g,'');
+  const terminos = q.split(' ').filter(Boolean);
+  return (...campos) => {
+    const h = normalizarTexto(campos.filter(v=>v!==null && v!==undefined && v!=='').join(' | '));
+    if(h.includes(q) || h.replace(/\s+/g,'').includes(qJunto)) return true;   // frase completa
+    return terminos.every(t => h.includes(t));                                // o todas las palabras, en cualquier campo
+  };
+}
+function camposMaestroGps(r){
+  return [r.dispositivo_original, r.vehiculo_dominio, r.modelo_periodo, r.zona_periodo, r.vehiculos?.label, r.vehiculos?.region, r.periodo_label];
+}
+const cacheMaestro = { clave:null, datos:null };
 async function cargarDatosBase(){
+  const base = await cargarDatosBaseCompleta();
+  const q = (state.masterQuery || '').trim();
+  if(!q) return base;
+  const clave = q + '|' + (base.cargadoEn ? base.cargadoEn.getTime() : '');
+  if(cacheMaestro.clave === clave) return cacheMaestro.datos;
+  const coincide = crearMatcherMaestro(q);
+  const reportes = base.reportes.filter(r => coincide(...camposMaestroGps(r)));
+  const dominios = new Set(reportes.map(r=>r.vehiculo_dominio));
+  const vehiculos = base.vehiculos.filter(v => dominios.has(v.dominio) || coincide(v.dominio, v.label, v.region, v.nombre_completo));
+  cacheMaestro.clave = clave;
+  cacheMaestro.datos = { ...base, reportes, vehiculos };
+  return cacheMaestro.datos;
+}
+async function cargarDatosBaseCompleta(){
   if(cacheDatos.reportes) return cacheDatos;
   if(!cacheDatos.promesa){
     cacheDatos.promesa = Promise.all([
@@ -1100,6 +1160,16 @@ function render(){
         </div>
         <div class="topbar-actions" id="topbar-actions"></div>
       </div>
+      <div class="master-bar ${state.masterQuery ? 'activo' : ''}" id="master-bar">
+        <div class="master-search">
+          ${icon('search')}
+          <input id="master-q" type="text" autocomplete="off" spellcheck="false"
+            placeholder="Filtro maestro: patente, zona, modelo, conductor, estación, provincia…"
+            aria-label="Filtro maestro para todas las hojas" value="${esc(state.masterQuery || '')}">
+          <button type="button" class="master-clear" id="master-clear" title="Quitar filtro" aria-label="Quitar filtro maestro">${icon('close')}</button>
+        </div>
+        <span class="master-hint" id="master-hint"></span>
+      </div>
       <div class="tabbar">
         ${tabItem('resumen','General')}
         ${tabItem('km','Km recorridos')}
@@ -1124,6 +1194,7 @@ function render(){
     <button class="icon-btn" id="btn-install-icon" style="display:none" title="Instalar app">${icon('install')}</button>
   `;
   bindInstallButton();
+  bindFiltroMaestro();
   const btnPlanilla = document.getElementById('btn-cargar-planilla');
   if(btnPlanilla) btnPlanilla.onclick = () => abrirModalImportar();
   document.getElementById('btn-refresh').onclick = () => { invalidarCacheDatos(); invalidarCacheYpf(); renderView(); };
@@ -1132,6 +1203,33 @@ function render(){
     if(proceed){ clearConfig(); state.sb=null; invalidarCacheDatos(); invalidarCacheYpf(); render(); }
   };
   renderView();
+}
+function actualizarEstadoMaestro(){
+  const bar = document.getElementById('master-bar');
+  if(!bar) return;
+  const activo = !!(state.masterQuery || '').trim();
+  bar.classList.toggle('activo', activo);
+  document.getElementById('master-hint').textContent = activo ? 'Filtrando todas las hojas' : 'Filtra todas las hojas a la vez';
+}
+function bindFiltroMaestro(){
+  const input = document.getElementById('master-q');
+  if(!input) return;
+  let timer = null;
+  const aplicar = () => {
+    clearTimeout(timer);
+    const nuevo = input.value.trim();
+    if(nuevo === (state.masterQuery || '')) return;
+    state.masterQuery = nuevo;
+    actualizarEstadoMaestro();
+    renderView();                                   // solo redibuja la hoja; el buscador conserva el foco
+  };
+  input.oninput = () => { clearTimeout(timer); timer = setTimeout(aplicar, 350); };
+  input.onkeydown = (e) => {
+    if(e.key === 'Enter') aplicar();
+    if(e.key === 'Escape' && input.value){ input.value = ''; aplicar(); }
+  };
+  document.getElementById('master-clear').onclick = () => { input.value = ''; aplicar(); input.focus(); };
+  actualizarEstadoMaestro();
 }
 function tabItem(view, label){
   const active = state.view===view ? 'active' : '';
@@ -3307,6 +3405,23 @@ async function renderReporteYpf(content){
   }
   if(token !== ypfRenderToken || state.view !== 'ypf' || !document.getElementById('ypf-tabla')) return; // hubo otra consulta o se cambió de hoja
 
+  // Filtro maestro: busca en las columnas de la tabla y, si la patente está en
+  // el GPS, también en su modelo y zona (así "PARTNER" o "REDES" funcionan acá).
+  const totalPeriodo = filas.length;
+  const coincideMaestro = crearMatcherMaestro(state.masterQuery || '');
+  if(coincideMaestro){
+    let infoGps = new Map();
+    try{
+      const { vehiculos } = await cargarDatosBaseCompleta();
+      infoGps = new Map(vehiculos.map(v=>[v.dominio, [v.nombre_completo, v.label, v.region]]));
+    }catch(e){ console.error(e); }
+    if(token !== ypfRenderToken || !document.getElementById('ypf-tabla')) return;
+    filas = filas.filter(r => coincideMaestro(
+      ypfFmtFecha(r.fecha), r.patente_original, r.conductor, r.establecimiento, r.provincia,
+      ...(infoGps.get(ypfNormalizarPatente(r.patente_original)) || [])
+    ));
+  }
+
   // Filtro por ID Tarjeta (opciones = las que aparecen en el período)
   const tarjetasOpts = [...new Set(filas.map(r=>r.patente_original).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es')).map(t=>({ value:t, label:t }));
   q.tarjetas = q.tarjetas.filter(t=>tarjetasOpts.some(o=>o.value===t));
@@ -3337,10 +3452,11 @@ async function renderReporteYpf(content){
     const cont = document.getElementById('ypf-tabla');
     document.getElementById('ypf-sub').textContent =
       `${fmtNum(visibles.length,0)} ${visibles.length===1?'carga':'cargas'} del ${fd(q.desde)} al ${fd(q.hasta)}` +
-      (visibles.length !== filas.length ? ` (de ${fmtNum(filas.length,0)} en el período)` : '');
+      (visibles.length !== totalPeriodo ? ` (de ${fmtNum(totalPeriodo,0)} en el período)` : '') +
+      (coincideMaestro ? ' · filtro maestro activo' : '');
     document.getElementById('ypf-export').disabled = !visibles.length;
     if(!visibles.length){
-      cont.innerHTML = `<div class="empty">${filas.length ? 'Ninguna carga coincide con la búsqueda o las tarjetas elegidas.' : 'No hay cargas registradas en este período.'}</div>`;
+      cont.innerHTML = `<div class="empty">${filas.length ? 'Ninguna carga coincide con la búsqueda o las tarjetas elegidas.' : totalPeriodo ? 'Ninguna carga del período coincide con el filtro maestro.' : 'No hay cargas registradas en este período.'}</div>`;
       return;
     }
     const sort = q.sort;
