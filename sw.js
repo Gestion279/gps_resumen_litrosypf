@@ -10,7 +10,7 @@
 // Cada vez que se publique un cambio importante, conviene subir también
 // el número de esta constante (v2, v3, ...) para forzar a los navegadores
 // a descartar cachés viejas de una.
-const CACHE = 'gps-modulo-v2';
+const CACHE = 'gps-modulo-v3'; // v3: hoja Reporte YPF
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -38,8 +38,12 @@ self.addEventListener('fetch', (event) => {
   // se cae a lo último que quedó guardado en caché.
   event.respondWith(
     fetch(event.request).then((resp) => {
-      const copy = resp.clone();
-      caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+      // solo se guardan respuestas correctas de lectura (un 404 o un error
+      // del servidor no debe pisar la copia buena que había en caché)
+      if(event.request.method === 'GET' && resp.ok){
+        const copy = resp.clone();
+        caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+      }
       return resp;
     }).catch(() => caches.match(event.request))
   );
