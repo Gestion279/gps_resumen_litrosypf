@@ -229,6 +229,17 @@
   .ind-grid .panel-head-actions .btn{padding:7px 14px;font-size:12.5px;}
   .ind-grid .panel-body{padding:4px 22px 18px 22px;}
 
+  /* Tarjetas de gráfico de las hojas Km recorridos y Litros consumidos */
+  .panel-graf .panel-head{padding:18px 22px 14px 22px;align-items:flex-start;}
+  .panel-graf .panel-head-left{align-items:flex-start;gap:12px;}
+  .panel-graf .panel-head-left .ic{width:32px;height:32px;border-radius:9px;margin-top:1px;}
+  .panel-graf .panel-head h2{font-size:15px;font-weight:700;color:var(--navy-950);letter-spacing:-.1px;line-height:1.3;}
+  .panel-graf .panel-head .sub{font-size:11.5px;color:var(--slate-400);margin-top:2px;font-weight:500;}
+  .panel-graf .panel-body{padding:4px 22px 18px 22px;}
+  .panel-graf .graf-area{height:270px;}
+  .ic.ic-blue{background:#eaf1fb;color:#2f67ad;}
+  .ic.ic-orange{background:#fdefe3;color:#c46a24;}
+
   /* Gráficos: hover discreto sobre la barra (el valor exacto sigue en el tooltip) */
   .bar-chart rect.bar{transition:opacity .12s ease;}
   .bar-chart rect.bar:hover{opacity:.78;}
@@ -1301,6 +1312,16 @@ async function renderKmRecorridos(content){
   content.innerHTML = `
     ${filtersBar(opts, state.filters)}
     ${warningSospechososHtml(sospechosas)}
+    <div class="panel panel-graf">
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic ic-blue">${icon('car')}</span><div><h2>Km recorridos por mes</h2><div class="sub">Total de la flota</div></div></div>
+      </div>
+      <div class="panel-body"><div class="graf-area">${pivot.periodos.length ? miniBarChart(
+        pivot.periodos.map(periodoLabelCompacta),
+        pivot.periodos.map(p=>pivot.totalPorPeriodo[p]||0),
+        { ...GRAF_ANCHO_COMPLETO, color:'#3b78c2', decValores:0, titulos:pivot.periodos.map(periodoLabelCorta) }
+      ) : `<div class="empty">No hay datos para estos filtros todavía.</div>`}</div></div>
+    </div>
     <div class="panel">
       <div class="panel-head">
         <div class="panel-head-left"><span class="ic">${icon('car')}</span><div><h2>Km recorridos</h2><div class="sub">Kilómetros por dispositivo y mes</div></div></div>
@@ -1340,11 +1361,15 @@ async function renderLitrosConsumidos(content){
   content.innerHTML = `
     ${filtersBar(opts, state.filters)}
     ${warningSospechososHtml(sospechosas)}
-    <div class="panel">
+    <div class="panel panel-graf">
       <div class="panel-head">
-        <div class="panel-head-left"><span class="ic">${icon('droplet')}</span><div><h2>Litros cargados por mes</h2><div class="sub">Total de la flota</div></div></div>
+        <div class="panel-head-left"><span class="ic ic-orange">${icon('droplet')}</span><div><h2>Litros cargados por mes</h2><div class="sub">Total de la flota</div></div></div>
       </div>
-      <div class="panel-body"><div style="height:280px">${miniBarChart(pivotLitros.periodos.map(periodoLabelCorta), pivotLitros.periodos.map(p=>pivotLitros.totalPorPeriodo[p]||0))}</div></div>
+      <div class="panel-body"><div class="graf-area">${pivotLitros.periodos.length ? miniBarChart(
+        pivotLitros.periodos.map(periodoLabelCompacta),
+        pivotLitros.periodos.map(p=>pivotLitros.totalPorPeriodo[p]||0),
+        { ...GRAF_ANCHO_COMPLETO, color:'#e8893a', decValores:0, decTooltip:1, titulos:pivotLitros.periodos.map(periodoLabelCorta) }
+      ) : `<div class="empty">No hay datos para estos filtros todavía.</div>`}</div></div>
     </div>
     <div class="panel">
       <div class="panel-head">
@@ -1466,15 +1491,22 @@ async function renderIndicadores(content){
 // Gráfico de barras propio, en SVG inline — no depende de que la librería
 // Chart.js externa haya cargado (evita el "Chart is not defined" si el CDN
 // está bloqueado o tarda), y queda igual de liviano y responsive.
+// Gráficos que ocupan todo el ancho (Km recorridos y Litros consumidos):
+// mismo eje adaptativo, valores sobre las barras y ancho de barra que Indicadores.
+const GRAF_ANCHO_COMPLETO = { w:1200, h:270, mostrarValores:true, ejeAdaptativo:true, anchoMaxBarra:46, decTicks:0 };
+
 function miniBarChart(labels, values, opts={}){
   const { w = 960, h = 260, color = '#20b5a2', decTicks = 0, decValores = 1, mostrarValores = false,
           // Opciones solo visuales (las usa la hoja Indicadores):
           titulos = null,          // texto del tooltip de cada barra (por defecto, la etiqueta)
           ejeAdaptativo = false,   // evita que las etiquetas del eje X se superpongan
-          anchoMaxBarra = Infinity // ancho máximo de cada barra
+          anchoMaxBarra = Infinity,// ancho máximo de cada barra
+          decTooltip = null        // decimales del tooltip (por defecto, los de los valores)
         } = opts;
   const n = labels.length || 1;
-  const padL = 48, padR = 12;
+  // En el modo adaptativo, el margen izquierdo crece si los números del eje Y son largos.
+  const largoTick = ejeAdaptativo ? fmtNum(Math.max(1, ...values.map(v=>v||0)), decTicks).length : 0;
+  const padL = Math.max(48, largoTick * 6.2 + 16), padR = 12;
   const padT = mostrarValores ? (ejeAdaptativo ? 26 : 22) : 12;
 
   // Eje X: si las etiquetas no entran, primero se muestra una cada 2 meses;
@@ -1523,7 +1555,7 @@ function miniBarChart(labels, values, opts={}){
     const bh = max ? ((v||0)/max) * innerH : 0;
     const x = padL + i*gap + (gap-bw)/2;
     const y = padT + innerH - bh;
-    const tip = `${esc(titulos ? titulos[i] : labels[i])}: ${fmtNum(v,decValores)}`;
+    const tip = `${esc(titulos ? titulos[i] : labels[i])}: ${fmtNum(v, decTooltip ?? decValores)}`;
     const valTxt = (mostrarValores && v && ((n-1-i) % pasoValor) === 0) ? `<text x="${(x+bw/2).toFixed(1)}" y="${(y-6).toFixed(1)}" font-size="${fsValor}" font-weight="600" fill="#4a5363" text-anchor="middle" pointer-events="none">${textosValor[i]}</text>` : '';
     return `<rect class="bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0,bh).toFixed(1)}" rx="${ejeAdaptativo?4:3}" fill="${color}"><title>${tip}</title></rect>${valTxt}`;
   }).join('');
