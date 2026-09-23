@@ -501,6 +501,30 @@
     .ind-grid{grid-template-columns:minmax(0,1fr);}
     .config-box{padding:26px;}
   }
+  /* ---------- Reporte YPF ---------- */
+  .seg{display:inline-flex;border:1px solid var(--slate-200);border-radius:var(--radius-sm);overflow:hidden;background:#fff;}
+  .seg button{border:none;background:none;padding:7px 13px;font-size:12.5px;font-weight:600;color:var(--slate-600);}
+  .seg button + button{border-left:1px solid var(--slate-200);}
+  .seg button:hover{background:var(--slate-50);}
+  .seg button.on{background:var(--teal-50);color:var(--teal-700);}
+  .seg button:focus-visible, .ypf-chip:focus-visible{outline:2px solid var(--teal-700);outline-offset:-2px;}
+  #ypf-tabla tbody tr[data-dom]:not(.pivot-total-row){cursor:pointer;}
+  #ypf-tabla tbody tr[data-dom]:hover td{background:var(--teal-50);}
+  .ypf-scroll{max-height:460px;}
+  .ypf-scroll table thead th{position:sticky;top:0;background:#fff;z-index:3;box-shadow:0 1px 0 var(--slate-200);}
+  .ypf-scroll td{padding:8px 14px;vertical-align:top;}
+  .ypf-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 20px 14px 20px;}
+  .ypf-chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--slate-200);background:#fff;border-radius:99px;padding:4px 6px 4px 12px;font-size:12px;font-weight:600;color:var(--slate-400);}
+  .ypf-chip .n{min-width:22px;padding:1px 7px;border-radius:99px;background:var(--slate-100);color:var(--slate-600);font-size:11px;text-align:center;}
+  .ypf-chip.on{border-color:var(--teal-600);color:var(--teal-700);background:var(--teal-50);}
+  .ypf-chip.on .n{background:#fff;color:var(--teal-700);}
+  .ypf-badges{display:flex;flex-wrap:wrap;gap:4px;}
+  .ypf-badges .aud-badge{padding:2px 8px;font-size:11px;}
+  .ypf-check{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--slate-600);font-weight:600;cursor:pointer;white-space:nowrap;}
+  @media (max-width: 780px){
+    .modal.aud-modal .aud-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
+    .ypf-chips{padding:0 14px 12px 14px;}
+  }
   html{scroll-padding-top:env(safe-area-inset-top,0px);}
 </style>
 </head>
@@ -1082,6 +1106,7 @@ function render(){
         ${tabItem('km','Km recorridos')}
         ${tabItem('litros','Litros consumidos')}
         ${tabItem('indicadores','Indicadores')}
+        ${tabItem('ypf','Reporte YPF')}
         ${tabItem('auditoria','Auditoría')}
       </div>
       <div class="content" id="content">Cargando…</div>
@@ -1094,17 +1119,17 @@ function render(){
   const tabActiva = document.querySelector('.tab-item.active');
   if(tabActiva){ const bar = tabActiva.parentElement; bar.scrollLeft = Math.max(0, tabActiva.offsetLeft - (bar.clientWidth - tabActiva.offsetWidth) / 2); }
   document.getElementById('topbar-actions').innerHTML = `
-    <button class="btn btn-primary" id="btn-cargar-planilla">${icon('upload')} Cargar planilla</button>
+    <button class="btn btn-primary" id="btn-cargar-planilla">${icon('upload')} ${state.view==='ypf' ? 'Cargar planilla YPF' : 'Cargar planilla'}</button>
     <button class="icon-btn" id="btn-refresh" title="Actualizar datos desde Supabase">${icon('refresh')}</button>
     <button class="icon-btn" id="btn-dots" title="Más opciones">${icon('dots')}</button>
     <button class="icon-btn" id="btn-install-icon" style="display:none" title="Instalar app">${icon('install')}</button>
   `;
   bindInstallButton();
-  document.getElementById('btn-cargar-planilla').onclick = () => abrirModalImportar();
-  document.getElementById('btn-refresh').onclick = () => { invalidarCacheDatos(); renderView(); };
+  document.getElementById('btn-cargar-planilla').onclick = () => state.view==='ypf' ? abrirModalImportarYpf() : abrirModalImportar();
+  document.getElementById('btn-refresh').onclick = () => { invalidarCacheDatos(); invalidarCacheYpf(); renderView(); };
   document.getElementById('btn-dots').onclick = () => {
     const proceed = confirm('¿Cambiar la configuración de conexión a Supabase?');
-    if(proceed){ clearConfig(); state.sb=null; invalidarCacheDatos(); render(); }
+    if(proceed){ clearConfig(); state.sb=null; invalidarCacheDatos(); invalidarCacheYpf(); render(); }
   };
   renderView();
 }
@@ -1162,6 +1187,7 @@ async function renderView(){
     else if(state.view === 'km') await renderKmRecorridos(content);
     else if(state.view === 'litros') await renderLitrosConsumidos(content);
     else if(state.view === 'indicadores') await renderIndicadores(content);
+    else if(state.view === 'ypf') await renderReporteYpf(content);
     else if(state.view === 'auditoria') await renderAuditoria(content);
     else if(state.view === 'historico') await renderHistorico(content);
   }catch(e){
@@ -1386,7 +1412,7 @@ function pivotTableHtml(pivot, {decimales=0, searchQuery='', etiquetaPeriodo=per
         <td class="num">${fmtNum(pivot.totalGeneral,decimales)}</td>
         ${pivot.periodos.map(p=>`<td class="num">${fmtNum(pivot.totalPorPeriodo[p],decimales)}</td>`).join('')}
       </tr>
-      ${filtered.length ? filtered.map(d=>`<tr>
+      ${filtered.length ? filtered.map(d=>`<tr data-dom="${esc(d.dominio)}">
         <td class="sticky-col device-name">${esc(d.nombre||d.dominio)}</td>
         <td class="num">${fmtNum(d.total,decimales)}</td>
         ${pivot.periodos.map(p=>`<td class="num">${(d.porPeriodo[p]!==null&&d.porPeriodo[p]!==undefined)?fmtNum(d.porPeriodo[p],decimales):'—'}</td>`).join('')}
@@ -2509,7 +2535,7 @@ async function renderResumen(content){
     document.getElementById('btn-export').onclick = () => exportarCSV(rows);
   }
 }
-function kpiCard({label, dec, unit, iconName, curr, prev, staticCaption, invert}){
+function kpiCard({label, dec, unit, iconName, curr, prev, staticCaption, invert, prefix}){
   let trendHtml = '', caption = staticCaption || '';
   if(prev!==undefined && prev!==null && curr!==undefined && curr!==null){
     const diff = curr - prev;
@@ -2519,9 +2545,9 @@ function kpiCard({label, dec, unit, iconName, curr, prev, staticCaption, invert}
     const dirIcon = diff >= 0 ? 'trendUp' : 'trendDown';
     const pctTxt = pct!==null ? `${pct>=0?'+':''}${fmtNum(pct,0)}%` : `${diff>=0?'+':''}${fmtNum(diff,dec)}`;
     trendHtml = `<span class="kpi-trend ${good?'up':'down'}">${icon(dirIcon)}${pctTxt}</span>`;
-    caption = `${fmtNum(prev,dec)}${unit?' '+esc(unit):''} mes anterior`;
+    caption = `${prefix?esc(prefix):''}${fmtNum(prev,dec)}${unit?' '+esc(unit):''} mes anterior`;
   }
-  const value = curr!==undefined && curr!==null ? fmtNum(curr,dec) : '—';
+  const value = curr!==undefined && curr!==null ? (prefix?esc(prefix):'') + fmtNum(curr,dec) : '—';
   return `<div class="kpi-card">
     <div class="kpi-top">
       <span class="kpi-icon">${icon(iconName)}</span>
@@ -3103,6 +3129,829 @@ async function ejecutarImportacion(resultEl){
     console.error(e);
     toast('Error al importar: ' + (e.message||e), 'error');
     btn.disabled = false; btn.textContent = 'Confirmar importación';
+  }
+}
+
+/* =========================================================================
+   REPORTE YPF — tickets de carga de YPF en Ruta (hoja "ReporteConsumos")
+   -------------------------------------------------------------------------
+   Carga diferida: esta hoja consulta Supabase recién cuando se abre y guarda
+   su propia copia en memoria (cacheYpf), así que no hace más lenta la carga
+   del resto del Dashboard. No baja los tickets: baja el resumen mensual por
+   vehículo (vista ypf_resumen_mensual) y la lista de cargas con señales
+   (vista ypf_alertas), que ya vienen calculadas desde el servidor. El
+   detalle ticket por ticket se pide solo al abrir un vehículo.
+   Tablas y vistas: ver ypf_schema.sql.
+   ========================================================================= */
+
+// El DNI del conductor viene en la planilla. Por defecto NO se guarda en
+// Supabase (la app usa la anon key). Cambiar a true solo si hace falta.
+const YPF_GUARDAR_DNI = false;
+const YPF_LOTE_UPSERT = 500;
+
+// nivel: 3 = prioritaria, 2 = revisar, 1 = observar (mismos colores que Auditoría)
+const YPF_SENALES = {
+  odometro_retrocede:   { label:'Odómetro retrocede',   nivel:3, desc:'El odómetro baja respecto de la última lectura válida y no se recupera en la carga siguiente.' },
+  recarga_rapida:       { label:'Recarga en menos de 2 h', nivel:3, desc:'Dos cargas del mismo vehículo con menos de 2 horas de diferencia.' },
+  salto_odometro:       { label:'Salto de odómetro',    nivel:2, desc:'Más de 3.000 km desde la última carga con tarjeta: posibles cargas por fuera de la tarjeta.' },
+  carga_alta:           { label:'Carga alta',           nivel:2, desc:'Más de 1,8 veces la carga habitual (mediana) del vehículo y más de 60 litros.' },
+  producto_inusual:     { label:'Combustible inusual',  nivel:2, desc:'Combustible distinto del que usa habitualmente el vehículo (ej. nafta en un diésel).' },
+  odometro_mal_cargado: { label:'Odómetro mal cargado', nivel:1, desc:'Valor aislado que no encaja con la carga anterior ni con la siguiente. No se usa para calcular km.' },
+};
+const YPF_METRICAS = {
+  litros:  { campo:'litros',        label:'Litros',  titulo:'Litros cargados',   dec:1, decTicks:0, color:'#7F9C96' },
+  importe: { campo:'importe_total', label:'Importe', titulo:'Importe facturado', dec:0, decTicks:0, color:'#4D7C8A', prefijo:'$ ' },
+  cargas:  { campo:'cargas',        label:'Cargas',  titulo:'Cantidad de cargas', dec:0, decTicks:0, color:'#8FAD88' },
+};
+
+const cacheYpf = { resumen:null, alertas:null, promesa:null };
+function invalidarCacheYpf(){ cacheYpf.resumen = null; cacheYpf.alertas = null; cacheYpf.promesa = null; }
+
+const YPF_NUM_RESUMEN = ['cargas','litros','importe_combustible','importe_otros','importe_total','km_odometro','cargas_con_alerta','odometros_mal_cargados','conductores'];
+const YPF_NUM_ALERTA = ['litros','importe_yer','odometro','odometro_anterior','km_desde_anterior','horas_desde_anterior','litros_mediana'];
+function ypfNumerico(rows, campos){
+  rows.forEach(r=>campos.forEach(c=>{ if(r[c]!==null && r[c]!==undefined) r[c] = Number(r[c]); }));
+  return rows;
+}
+async function cargarDatosYpf(){
+  if(cacheYpf.resumen) return cacheYpf;
+  if(!cacheYpf.promesa){
+    cacheYpf.promesa = Promise.all([
+      sbSelectParalelo('ypf_resumen_mensual', 'clave, vehiculo_dominio, periodo, patente_original, ' + YPF_NUM_RESUMEN.join(', '), 'clave'),
+      sbSelectParalelo('ypf_alertas', 'remito, fecha, periodo, vehiculo_dominio, patente_original, conductor, establecimiento, localidad, provincia, producto, familia_habitual, senales, ' + YPF_NUM_ALERTA.join(', '), 'remito'),
+    ]).then(([resumen, alertas])=>{
+      cacheYpf.resumen = ypfNumerico(resumen, YPF_NUM_RESUMEN);
+      cacheYpf.alertas = ypfNumerico(alertas, YPF_NUM_ALERTA);
+      return cacheYpf;
+    }).catch(e=>{ cacheYpf.promesa = null; throw e; });
+  }
+  return cacheYpf.promesa;
+}
+function ypfEsErrorDeTablas(e){
+  const msg = String(e?.message || e || '');
+  return e?.code === '42P01' || e?.code === 'PGRST205' || /ypf_(resumen_mensual|alertas|consumos|importaciones|cargas_calc)/.test(msg);
+}
+
+// Nombre para mostrar: el del GPS si el vehículo existe en "vehiculos",
+// si no la patente tal cual vino en la planilla YPF.
+function ypfMapaNombres(vehiculos, resumen){
+  const porDominio = new Map((vehiculos||[]).map(v=>[v.dominio, v]));
+  const nombres = new Map();
+  resumen.forEach(r=>{
+    if(nombres.has(r.vehiculo_dominio)) return;
+    const v = porDominio.get(r.vehiculo_dominio);
+    nombres.set(r.vehiculo_dominio, v ? (v.nombre_completo || nombreCompleto(v.dominio, v.label) || v.dominio) : (r.patente_original || r.vehiculo_dominio));
+  });
+  return nombres;
+}
+function ypfFmtFecha(s){
+  if(!s) return '—';
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : String(s);
+}
+function ypfFmtMoneda(n, dec){ return (n===null || n===undefined || isNaN(n)) ? '—' : '$ ' + fmtNum(n, dec||0); }
+function ypfFiltrar(rows, f){
+  let out = rows;
+  if(f.periodo && f.periodo.length){ const s = new Set(f.periodo); out = out.filter(r=>s.has(r.periodo)); }
+  if(f.vehiculo && f.vehiculo.length){ const s = new Set(f.vehiculo); out = out.filter(r=>s.has(r.vehiculo_dominio)); }
+  return out;
+}
+function ypfAgregar(rows){
+  const litros = sumField(rows,'litros'), importeComb = sumField(rows,'importe_combustible');
+  const conKm = rows.filter(r=>r.km_odometro>0);
+  return {
+    vehiculos: new Set(rows.filter(r=>r.cargas>0).map(r=>r.vehiculo_dominio)).size,
+    cargas: sumField(rows,'cargas'),
+    litros,
+    importe: sumField(rows,'importe_total'),
+    precio: litros ? importeComb/litros : null,
+    km: conKm.length ? sumField(conKm,'km_odometro') : null,
+    alertas: sumField(rows,'cargas_con_alerta'),
+  };
+}
+function ypfBadgeSenal(s){
+  const d = YPF_SENALES[s] || { label:s, nivel:1, desc:'' };
+  const cls = d.nivel>=3 ? 'aud-prioritaria' : d.nivel===2 ? 'aud-revisar' : 'aud-observar';
+  return `<span class="aud-badge ${cls}" title="${esc(d.desc)}">${esc(d.label)}</span>`;
+}
+function ypfDescargarCSV(headers, filas, nombre){
+  const lines = [headers.join(';'), ...filas.map(f=>f.map(v=>String(v===null||v===undefined?'':v).replace(/;/g,',').replace(/\n/g,' ')).join(';'))];
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type:'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `${nombre}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* ---------- Hoja ---------- */
+async function renderReporteYpf(content){
+  content.innerHTML = `<div class="empty"><span class="spin"></span> Cargando consumos YPF…</div>`;
+  let datos, base;
+  try{
+    [datos, base] = await Promise.all([cargarDatosYpf(), cargarDatosBase()]);
+  }catch(e){
+    if(ypfEsErrorDeTablas(e)){
+      console.error(e);
+      content.innerHTML = `<div class="panel"><div class="panel-body" style="padding-top:20px">
+        <strong style="color:var(--navy-950)">Faltan las tablas del Reporte YPF en Supabase.</strong>
+        <p class="muted" style="margin-top:8px">Abrí el proyecto en Supabase → SQL Editor, pegá el contenido de <code>ypf_schema.sql</code> y ejecutalo. Después tocá Actualizar.</p>
+        <p class="muted" style="font-size:12px">Detalle técnico: ${esc(e.message || e)}</p>
+      </div></div>`;
+      return;
+    }
+    throw e;
+  }
+
+  if(!state.filtersYpf) state.filtersYpf = { periodo:[], vehiculo:[] };
+  if(!state.ypfMetrica) state.ypfMetrica = 'litros';
+  if(!state.ypfSenales) state.ypfSenales = Object.keys(YPF_SENALES).filter(s=>s!=='odometro_mal_cargado');
+  if(state.ypfSoloDiferencias === undefined) state.ypfSoloDiferencias = true;
+  const f = state.filtersYpf;
+
+  if(!datos.resumen.length){
+    content.innerHTML = `<div class="panel"><div class="empty">
+      Todavía no hay consumos YPF cargados.<br><br>
+      <button class="btn btn-primary" id="ypf-empty-cargar">${icon('upload')} Cargar planilla YPF</button>
+    </div></div>`;
+    document.getElementById('ypf-empty-cargar').onclick = () => abrirModalImportarYpf();
+    return;
+  }
+
+  const nombres = ypfMapaNombres(base.vehiculos, datos.resumen);
+  const nombreDe = d => nombres.get(d) || d;
+  const periodosOpts = [...new Set(datos.resumen.map(r=>r.periodo))].sort().reverse().map(p=>({ value:p, label:periodoLabelFromKey(p) }));
+  const vehiculosOpts = [...nombres.entries()].map(([value,label])=>({ value, label })).sort((a,b)=>a.label.localeCompare(b.label));
+
+  const rows = ypfFiltrar(datos.resumen, f);
+  const k = ypfAgregar(rows);
+  let kPrev = null;
+  if(f.periodo.length===1){
+    const prevRows = ypfFiltrar(datos.resumen, { ...f, periodo:[periodoAnterior(f.periodo[0])] });
+    if(prevRows.length) kPrev = ypfAgregar(prevRows);
+  }
+
+  // --- métrica elegida: gráfico + tabla dinámica ---
+  const met = YPF_METRICAS[state.ypfMetrica];
+  const filasPivot = rows.map(r=>({ ...r, dispositivo_original: nombreDe(r.vehiculo_dominio) }));
+  const pivot = buildPivot(filasPivot, { aggregate: rs => sumField(rs, met.campo) });
+
+  // --- conciliación con los litros del reporte GPS ---
+  const periodosYpf = new Set(datos.resumen.map(r=>r.periodo));
+  const gpsPorClave = new Map();
+  (base.reportes||[]).forEach(r=>{
+    if(r.litros_ypf===null || r.litros_ypf===undefined || !periodosYpf.has(r.periodo)) return;
+    const clave = r.vehiculo_dominio + '|' + r.periodo;
+    gpsPorClave.set(clave, (gpsPorClave.get(clave)||0) + Number(r.litros_ypf));
+  });
+  const conc = new Map();
+  rows.filter(r=>r.litros>0).forEach(r=>conc.set(r.clave, { dominio:r.vehiculo_dominio, periodo:r.periodo, tickets:r.litros, gps:null }));
+  gpsPorClave.forEach((litros, clave)=>{
+    const [dominio, periodo] = clave.split('|');
+    if(f.periodo.length && !f.periodo.includes(periodo)) return;
+    if(f.vehiculo.length && !f.vehiculo.includes(dominio)) return;
+    if(conc.has(clave)) conc.get(clave).gps = litros;
+    else if(litros>0) conc.set(clave, { dominio, periodo, tickets:null, gps:litros });
+  });
+  const concFilas = [...conc.values()].map(c=>{
+    const dif = (c.tickets!==null && c.gps!==null) ? c.tickets - c.gps : null;
+    const pct = (dif!==null && c.gps) ? dif / c.gps * 100 : null;
+    return { ...c, nombre:nombreDe(c.dominio), dif, pct };
+  });
+  const concCoinciden = concFilas.filter(c=>c.pct!==null && Math.abs(c.pct)<=5).length;
+  const concComparables = concFilas.filter(c=>c.pct!==null).length;
+  const concSinPar = concFilas.length - concComparables;
+
+  // --- alertas ---
+  const alertasPeriodo = ypfFiltrar(datos.alertas, f);
+  const conteoSenales = {};
+  alertasPeriodo.forEach(a=>(a.senales||[]).forEach(s=>{ conteoSenales[s] = (conteoSenales[s]||0) + 1; }));
+
+  content.innerHTML = `
+    <div class="filters">
+      ${multiSelectTrigger('fy-periodo','calendar','Todos los períodos', periodosOpts, f.periodo)}
+      ${multiSelectTrigger('fy-vehiculo','car','Todos los vehículos', vehiculosOpts, f.vehiculo)}
+    </div>
+    <div class="kpi-grid">
+      ${kpiCard({label:'Vehículos', dec:0, unit:'', iconName:'truck', curr:k.vehiculos, prev:kPrev?.vehiculos, staticCaption:'Con cargas en el período'})}
+      ${kpiCard({label:'Cargas', dec:0, unit:'', iconName:'fuel', curr:k.cargas, prev:kPrev?.cargas})}
+      ${kpiCard({label:'Litros cargados', dec:1, unit:'L', iconName:'droplet', curr:k.litros, prev:kPrev?.litros})}
+      ${kpiCard({label:'Importe facturado', dec:0, unit:'', prefix:'$ ', iconName:'tag', curr:k.importe, prev:kPrev?.importe, invert:true})}
+      ${kpiCard({label:'Precio promedio', dec:0, unit:'/L', prefix:'$ ', iconName:'gauge', curr:k.precio, prev:kPrev?.precio, invert:true})}
+      ${kpiCard({label:'Km según odómetro', dec:0, unit:'km', iconName:'car', curr:k.km, prev:kPrev?.km, staticCaption:'Entre cargas con lectura válida'})}
+      ${kpiCard({label:'Cargas para revisar', dec:0, unit:'', iconName:'alert', curr:k.alertas, prev:kPrev?.alertas, invert:true, staticCaption:'Ver lista más abajo'})}
+    </div>
+
+    <div class="panel panel-graf">
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic ic-orange">${icon('fuel')}</span><div><h2>${esc(met.titulo)} por mes</h2><div class="sub">Total de la flota, según tickets YPF</div></div></div>
+        <div class="panel-head-actions">
+          <div class="seg" role="group" aria-label="Métrica">
+            ${Object.entries(YPF_METRICAS).map(([key,m])=>`<button type="button" data-met="${key}" class="${key===state.ypfMetrica?'on':''}" aria-pressed="${key===state.ypfMetrica}">${esc(m.label)}</button>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="panel-body"><div class="graf-area">${pivot.periodos.length ? miniBarChart(
+        pivot.periodos.map(periodoLabelCompacta),
+        pivot.periodos.map(p=>pivot.totalPorPeriodo[p]||0),
+        { ...GRAF_ANCHO_COMPLETO, color:met.color, decValores:0, decTicks:met.decTicks, decTooltip:met.dec, titulos:pivot.periodos.map(periodoLabelCorta) }
+      ) : `<div class="empty">No hay cargas para estos filtros.</div>`}</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic">${icon('droplet')}</span><div><h2>${esc(met.titulo)} por vehículo</h2><div class="sub">Por vehículo y mes · clic en un vehículo para ver sus tickets</div></div></div>
+        <div class="panel-head-actions">
+          <div class="search-box">${icon('search')}<input id="ypf-search" placeholder="Buscar vehículo…"></div>
+          <button class="btn btn-secondary" id="ypf-export">${icon('download')} Exportar</button>
+        </div>
+      </div>
+      <div class="pivot-scroll" id="ypf-tabla">
+        ${pivot.devices.length ? pivotTableHtml(pivot,{decimales:met.dec}) : `<div class="empty">No hay cargas para estos filtros.</div>`}
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic ic-blue">${icon('fix')}</span><div><h2>Conciliación con GPS</h2><div class="sub">Litros según tickets YPF contra litros del reporte GPS · ${fmtNum(concCoinciden,0)} de ${fmtNum(concComparables,0)} vehículo-mes coinciden dentro del 5 %${concSinPar ? ` · ${fmtNum(concSinPar,0)} sin dato de una de las dos fuentes` : ''}</div></div></div>
+        <div class="panel-head-actions">
+          <label class="ypf-check"><input type="checkbox" id="conc-solo" ${state.ypfSoloDiferencias?'checked':''}> Solo diferencias</label>
+          <div class="search-box">${icon('search')}<input id="conc-search" placeholder="Buscar vehículo…"></div>
+          <button class="btn btn-secondary" id="conc-export">${icon('download')} Exportar</button>
+        </div>
+      </div>
+      <div class="pivot-scroll ypf-scroll" id="conc-tabla"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic">${icon('alert')}</span><div><h2>Cargas con señales</h2><div class="sub">Tocá una señal para mostrarla u ocultarla · pasá el mouse para ver el criterio</div></div></div>
+        <div class="panel-head-actions">
+          <div class="search-box">${icon('search')}<input id="al-search" placeholder="Vehículo, conductor, estación…"></div>
+          <button class="btn btn-secondary" id="al-export">${icon('download')} Exportar</button>
+        </div>
+      </div>
+      <div class="ypf-chips" id="al-chips">
+        ${Object.entries(YPF_SENALES).map(([s,d])=>`<button type="button" class="ypf-chip ${state.ypfSenales.includes(s)?'on':''}" data-senal="${s}" title="${esc(d.desc)}" aria-pressed="${state.ypfSenales.includes(s)}">${esc(d.label)}<span class="n">${fmtNum(conteoSenales[s]||0,0)}</span></button>`).join('')}
+      </div>
+      <div class="pivot-scroll ypf-scroll" id="al-tabla"></div>
+    </div>
+  `;
+
+  // Filtros propios de esta hoja (no cambian los de las hojas GPS)
+  const bindMs = (id, opciones, clave, todos) => {
+    document.getElementById(id+'-trigger').onclick = (e) => {
+      e.stopPropagation();
+      abrirMultiSelectPanel(id, opciones, f[clave], todos, (nuevos)=>{ f[clave] = nuevos; renderView(); });
+    };
+  };
+  bindMs('fy-periodo', periodosOpts, 'periodo', 'Todos los períodos');
+  bindMs('fy-vehiculo', vehiculosOpts, 'vehiculo', 'Todos los vehículos');
+
+  content.querySelectorAll('.seg button[data-met]').forEach(b=>{
+    b.onclick = () => { state.ypfMetrica = b.dataset.met; renderView(); };
+  });
+
+  // Tabla dinámica
+  const bindFilasPivot = () => {
+    document.querySelectorAll('#ypf-tabla tbody tr[data-dom]').forEach(tr=>{
+      tr.onclick = () => abrirDetalleYpf(tr.dataset.dom, nombreDe(tr.dataset.dom));
+    });
+  };
+  if(pivot.devices.length){
+    ajustarAlturaPivot('ypf-tabla');
+    window.onresize = () => ajustarAlturaPivot('ypf-tabla');
+    bindFilasPivot();
+    document.getElementById('ypf-search').oninput = (e)=>{
+      const cont = document.getElementById('ypf-tabla');
+      cont.innerHTML = pivotTableHtml(pivot,{decimales:met.dec, searchQuery:e.target.value});
+      cont.scrollTop = 0;
+      ajustarAlturaPivot('ypf-tabla');
+      bindFilasPivot();
+    };
+    document.getElementById('ypf-export').onclick = () => exportarPivotCSV(pivot, `ypf_${state.ypfMetrica}_por_vehiculo`, met.dec);
+  }
+
+  // Conciliación
+  const pintarConciliacion = () => {
+    const q = (document.getElementById('conc-search')?.value || '').toLowerCase();
+    let lista = concFilas;
+    if(state.ypfSoloDiferencias) lista = lista.filter(c=>c.pct===null || Math.abs(c.pct)>5);
+    if(q) lista = lista.filter(c=>c.nombre.toLowerCase().includes(q) || c.dominio.toLowerCase().includes(q));
+    // Primero las diferencias reales (mayor a menor); al final, los que no tienen contraparte.
+    lista = [...lista].sort((a,b)=>{
+      const va = a.dif===null ? -1 : Math.abs(a.dif), vb = b.dif===null ? -1 : Math.abs(b.dif);
+      return vb - va || b.periodo.localeCompare(a.periodo) || a.nombre.localeCompare(b.nombre);
+    });
+    const cont = document.getElementById('conc-tabla');
+    if(!lista.length){ cont.innerHTML = `<div class="empty">${concFilas.length ? 'Todos los vehículo-mes coinciden dentro del 5 %.' : 'No hay litros para comparar con estos filtros.'}</div>`; return; }
+    const clasePct = p => p===null ? '' : Math.abs(p)>=25 ? 'aud-txt-3' : Math.abs(p)>=10 ? 'aud-txt-2' : Math.abs(p)>5 ? 'aud-txt-1' : '';
+    cont.innerHTML = `<table>
+      <thead><tr><th>Vehículo</th><th>Período</th><th class="num">Litros tickets</th><th class="num">Litros GPS</th><th class="num">Diferencia</th><th class="num">Dif. %</th></tr></thead>
+      <tbody>${lista.map(c=>`<tr>
+        <td><span class="device-name">${esc(c.nombre)}</span></td>
+        <td>${esc(periodoLabelFromKey(c.periodo))}</td>
+        <td class="num">${c.tickets===null ? '<span class="muted">sin tickets</span>' : fmtNum(c.tickets,1)}</td>
+        <td class="num">${c.gps===null ? '<span class="muted">sin dato GPS</span>' : fmtNum(c.gps,1)}</td>
+        <td class="num ${clasePct(c.pct)}">${c.dif===null ? '—' : (c.dif>0?'+':'') + fmtNum(c.dif,1)}</td>
+        <td class="num ${clasePct(c.pct)}">${c.pct===null ? '—' : (c.pct>0?'+':'') + fmtNum(c.pct,1) + ' %'}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  };
+  pintarConciliacion();
+  document.getElementById('conc-solo').onchange = (e) => { state.ypfSoloDiferencias = e.target.checked; pintarConciliacion(); };
+  document.getElementById('conc-search').oninput = pintarConciliacion;
+  document.getElementById('conc-export').onclick = () => ypfDescargarCSV(
+    ['Vehiculo','Dominio','Periodo','Litros_tickets','Litros_GPS','Diferencia','Dif_pct'],
+    concFilas.map(c=>[c.nombre, c.dominio, c.periodo, c.tickets??'', c.gps??'', c.dif!==null?c.dif.toFixed(1):'', c.pct!==null?c.pct.toFixed(1):'']),
+    'ypf_conciliacion_gps');
+
+  // Alertas
+  const alertasVisibles = () => {
+    const activas = new Set(state.ypfSenales);
+    const q = (document.getElementById('al-search')?.value || '').toLowerCase();
+    return alertasPeriodo
+      .filter(a=>(a.senales||[]).some(s=>activas.has(s)))
+      .filter(a=>!q || [nombreDe(a.vehiculo_dominio), a.vehiculo_dominio, a.conductor, a.establecimiento, a.localidad, a.provincia].some(v=>String(v||'').toLowerCase().includes(q)))
+      .sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  };
+  const pintarAlertas = () => {
+    const lista = alertasVisibles();
+    const cont = document.getElementById('al-tabla');
+    if(!lista.length){ cont.innerHTML = `<div class="empty">No hay cargas con las señales elegidas para estos filtros.</div>`; return; }
+    cont.innerHTML = `<table>
+      <thead><tr><th>Fecha</th><th>Vehículo</th><th>Señales</th><th class="num">Litros</th><th class="num">Odómetro</th><th class="num">Km desde anterior</th><th>Conductor</th><th>Estación</th></tr></thead>
+      <tbody>${lista.map(a=>`<tr class="row-click" data-dom="${esc(a.vehiculo_dominio)}">
+        <td>${esc(ypfFmtFecha(a.fecha))}</td>
+        <td><span class="device-name">${esc(nombreDe(a.vehiculo_dominio))}</span></td>
+        <td><div class="ypf-badges">${(a.senales||[]).map(ypfBadgeSenal).join('')}</div></td>
+        <td class="num">${fmtNum(a.litros,1)}${a.litros_mediana && (a.senales||[]).includes('carga_alta') ? `<span class="aud-sub">habitual ${fmtNum(a.litros_mediana,0)} L</span>` : ''}</td>
+        <td class="num">${fmtNum(a.odometro,0)}${a.odometro_anterior!==null && a.odometro_anterior!==undefined ? `<span class="aud-sub">anterior ${fmtNum(a.odometro_anterior,0)}</span>` : ''}</td>
+        <td class="num">${a.km_desde_anterior===null || a.km_desde_anterior===undefined ? '—' : fmtNum(a.km_desde_anterior,0)}${a.horas_desde_anterior!==null && a.horas_desde_anterior<2 ? `<span class="aud-sub">${fmtNum(a.horas_desde_anterior*60,0)} min después</span>` : ''}</td>
+        <td>${esc(a.conductor||'—')}</td>
+        <td>${esc(a.establecimiento||'—')}<span class="aud-sub">${esc([a.localidad, a.provincia].filter(Boolean).join(', '))}</span></td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+    cont.querySelectorAll('tr[data-dom]').forEach(tr=>{ tr.onclick = () => abrirDetalleYpf(tr.dataset.dom, nombreDe(tr.dataset.dom)); });
+  };
+  pintarAlertas();
+  document.querySelectorAll('#al-chips .ypf-chip').forEach(b=>{
+    b.onclick = () => {
+      const s = b.dataset.senal;
+      state.ypfSenales = state.ypfSenales.includes(s) ? state.ypfSenales.filter(x=>x!==s) : [...state.ypfSenales, s];
+      const on = state.ypfSenales.includes(s);
+      b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+      pintarAlertas();
+    };
+  });
+  document.getElementById('al-search').oninput = pintarAlertas;
+  document.getElementById('al-export').onclick = () => ypfDescargarCSV(
+    ['Fecha','Vehiculo','Dominio','Remito','Senales','Litros','Odometro','Odometro_anterior','Km_desde_anterior','Conductor','Establecimiento','Localidad','Provincia','Producto'],
+    alertasVisibles().map(a=>[ypfFmtFecha(a.fecha), nombreDe(a.vehiculo_dominio), a.vehiculo_dominio, a.remito, (a.senales||[]).map(s=>YPF_SENALES[s]?.label||s).join(' | '), a.litros, a.odometro, a.odometro_anterior, a.km_desde_anterior, a.conductor, a.establecimiento, a.localidad, a.provincia, a.producto]),
+    'ypf_cargas_con_senales');
+}
+
+/* ---------- Detalle de tickets de un vehículo (se pide al abrirlo) ---------- */
+async function abrirDetalleYpf(dominio, nombre){
+  const f = state.filtersYpf || { periodo:[] };
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal aud-modal" role="dialog" aria-modal="true" aria-label="Tickets YPF de ${esc(nombre)}">
+    <div class="aud-modal-head">
+      <div>
+        <div class="aud-modal-kicker">Tickets YPF</div>
+        <h3>${esc(nombre)}</h3>
+        <div class="aud-modal-estado muted">${f.periodo.length ? esc(f.periodo.map(periodoLabelFromKey).join(', ')) : 'Todos los períodos'}</div>
+      </div>
+      <div class="aud-modal-actions">
+        <button class="btn btn-secondary" id="ypfd-export" disabled>${icon('download')} Exportar</button>
+        <button class="icon-btn" id="ypfd-close" title="Cerrar">${icon('close')}</button>
+      </div>
+    </div>
+    <div class="aud-modal-body" id="ypfd-body"><div class="empty"><span class="spin"></span> Cargando tickets…</div></div>
+  </div>`;
+  document.body.appendChild(bg);
+  const cerrar = () => { bg.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if(e.key==='Escape') cerrar(); };
+  document.addEventListener('keydown', onKey);
+  bg.querySelector('#ypfd-close').onclick = cerrar;
+  bg.addEventListener('click', e=>{ if(e.target===bg) cerrar(); });
+
+  try{
+    const tickets = ypfNumerico(await sbSelectPaginado(()=>{
+      let q = state.sb.from('ypf_cargas_calc')
+        .select('remito, fecha, periodo, producto, litros, importe_yer, precio_yer, odometro, km_desde_anterior, conductor, establecimiento, localidad, provincia, origen, senales')
+        .eq('vehiculo_dominio', dominio);
+      if(f.periodo.length) q = q.in('periodo', f.periodo);
+      return q.order('fecha', { ascending:false }).order('remito', { ascending:true });
+    }), ['litros','importe_yer','precio_yer','odometro','km_desde_anterior']);
+
+    const body = bg.querySelector('#ypfd-body');
+    if(!tickets.length){ body.innerHTML = `<div class="empty">No hay tickets de combustible para este vehículo en el período elegido.</div>`; return; }
+    const litros = sumField(tickets,'litros'), importe = sumField(tickets,'importe_yer');
+    const conKm = tickets.filter(t=>t.km_desde_anterior>0 && t.km_desde_anterior<=3000);
+    const km = sumField(conKm,'km_desde_anterior'), litrosConKm = sumField(conKm,'litros');
+    const l100 = km ? litrosConKm/(km/100) : null;
+    body.innerHTML = `
+      <div class="aud-metric-grid" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:16px">
+        <div><div class="l">Cargas</div><div class="v">${fmtNum(tickets.length,0)}</div></div>
+        <div><div class="l">Litros</div><div class="v">${fmtNum(litros,1)}</div></div>
+        <div><div class="l">Importe</div><div class="v">${ypfFmtMoneda(importe,0)}</div></div>
+        <div><div class="l">Km según odómetro</div><div class="v">${fmtNum(km,0)}</div></div>
+        <div><div class="l">Litros cada 100 km</div><div class="v">${fmtNum(l100,1)}</div></div>
+      </div>
+      <div class="aud-scroll-x aud-hist-wrap" style="max-height:52vh">
+        <table class="aud-hist">
+          <thead><tr><th>Fecha</th><th>Producto</th><th class="num">Litros</th><th class="num">Importe</th><th class="num">$/L</th><th class="num">Odómetro</th><th class="num">Km</th><th>Conductor</th><th>Estación</th><th>Señales</th></tr></thead>
+          <tbody>${tickets.map(t=>`<tr>
+            <td>${esc(ypfFmtFecha(t.fecha))}</td>
+            <td>${esc(t.producto||'—')}</td>
+            <td class="num">${fmtNum(t.litros,2)}</td>
+            <td class="num">${ypfFmtMoneda(t.importe_yer,0)}</td>
+            <td class="num">${fmtNum(t.precio_yer,0)}</td>
+            <td class="num">${fmtNum(t.odometro,0)}</td>
+            <td class="num">${t.km_desde_anterior===null||t.km_desde_anterior===undefined ? '—' : fmtNum(t.km_desde_anterior,0)}</td>
+            <td>${esc(t.conductor||'—')}</td>
+            <td>${esc(t.establecimiento||'—')}<span class="aud-sub">${esc([t.localidad,t.provincia].filter(Boolean).join(', '))}</span></td>
+            <td><div class="ypf-badges">${(t.senales||[]).map(ypfBadgeSenal).join('') || '<span class="muted">—</span>'}</div></td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+      <p class="muted aud-nota">Km y litros cada 100 km se calculan entre cargas consecutivas con odómetro válido. Los productos que no son combustible (ej. AZUL 32) no se listan acá.</p>`;
+    const btn = bg.querySelector('#ypfd-export');
+    btn.disabled = false;
+    btn.onclick = () => ypfDescargarCSV(
+      ['Fecha','Remito','Producto','Litros','Importe','Precio_L','Odometro','Km_desde_anterior','Conductor','Establecimiento','Localidad','Provincia','Origen','Senales'],
+      tickets.map(t=>[ypfFmtFecha(t.fecha), t.remito, t.producto, t.litros, t.importe_yer, t.precio_yer, t.odometro, t.km_desde_anterior, t.conductor, t.establecimiento, t.localidad, t.provincia, t.origen, (t.senales||[]).map(s=>YPF_SENALES[s]?.label||s).join(' | ')]),
+      `ypf_tickets_${dominio}`);
+  }catch(e){
+    console.error(e);
+    bg.querySelector('#ypfd-body').innerHTML = `<div class="empty">No se pudieron cargar los tickets (${esc(e.message||e)}).</div>`;
+  }
+}
+
+/* ---------- Importación de la planilla YPF ---------- */
+// Encabezados de la hoja "ReporteConsumos" (se comparan sin tildes y en minúscula).
+const YPF_HEADER_ALIASES = {
+  fecha:              ['fecha','fecha hora','fecha y hora'],
+  contrato:           ['contrato'],
+  subcuenta:          ['subcuenta'],
+  centro_costo:       ['centro costo','centro de costo'],
+  establecimiento:    ['establecimiento','estacion'],
+  domicilio:          ['domicilio'],
+  localidad:          ['localidad'],
+  provincia:          ['provincia'],
+  tarjeta:            ['tarjeta','nro tarjeta'],
+  conductor:          ['conductor'],
+  conductor_tipo_doc: ['tipo identificacion conductor'],
+  conductor_nro_doc:  ['nro identificacion conductor'],
+  patente:            ['identificacion tarjeta','patente','dominio'],
+  odometro:           ['odometro','kilometraje'],
+  origen:             ['origen de transaccion','origen'],
+  facturable:         ['trx facturable','facturable'],
+  remito:             ['remito','nro remito'],
+  producto:           ['producto'],
+  litros:             ['litros unidades','litros','cantidad'],
+  precio_pvp:         ['precio pvp establecimiento'],
+  importe_pvp:        ['imp tot pvp establecimiento'],
+  precio_yer:         ['precio yer'],
+  importe_yer:        ['imp tot yer'],
+  divisa:             ['divisa'],
+  iva:                ['iva'],
+  imp_co2:            ['imp co2'],
+  tasa_vial:          ['tasa vial'],
+  imp_comb_liq:       ['imp comb liq'],
+  factura:            ['factura'],
+  extracto:           ['extracto'],
+};
+const YPF_OBLIGATORIOS = ['fecha','remito','patente','litros'];
+
+function ypfDetectarEncabezados(rows){
+  for(let i=0; i<Math.min(rows.length, 30); i++){
+    const r = rows[i] || [];
+    const mapa = {};
+    r.forEach((celda, j)=>{
+      const t = normalizarTexto(celda);
+      if(!t) return;
+      for(const [campo, alias] of Object.entries(YPF_HEADER_ALIASES)){
+        if(mapa[campo]===undefined && alias.includes(t)){ mapa[campo] = j; break; }
+      }
+    });
+    if(YPF_OBLIGATORIOS.every(c=>mapa[c]!==undefined)) return { idx:i, mapa };
+  }
+  return null;
+}
+function ypfTexto(raw){
+  if(raw===null || raw===undefined) return null;
+  const s = String(raw).trim().replace(/\s+/g,' ');
+  return s==='' ? null : s;
+}
+function ypfNumero(raw){
+  if(raw===null || raw===undefined || raw==='') return null;
+  if(typeof raw === 'number') return isNaN(raw) ? null : raw;
+  let s = String(raw).trim().replace(/[$\s]/g,'');
+  if(s==='') return null;
+  if(/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s) || /^-?\d+,\d+$/.test(s)) s = s.replace(/\./g,'').replace(',','.'); // formato 1.234,56
+  else s = s.replace(/,/g,'');                                                                                 // formato 1,234.56
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+const pad2 = n => String(n).padStart(2,'0');
+function ypfFechaHora(raw){
+  if(raw===null || raw===undefined || raw==='') return null;
+  if(raw instanceof Date && !isNaN(raw)){
+    return `${raw.getFullYear()}-${pad2(raw.getMonth()+1)}-${pad2(raw.getDate())} ${pad2(raw.getHours())}:${pad2(raw.getMinutes())}:${pad2(raw.getSeconds())}`;
+  }
+  if(typeof raw === 'number'){
+    const d = new Date(EXCEL_EPOCH_MS + Math.round(raw*86400) * 1000);
+    return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
+  }
+  const s = String(raw).trim();
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if(m) return `${m[3]}-${pad2(m[2])}-${pad2(m[1])} ${pad2(m[4]||0)}:${pad2(m[5]||0)}:${pad2(m[6]||0)}`;
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if(m) return `${m[1]}-${m[2]}-${m[3]} ${m[4]||'00'}:${m[5]||'00'}:${m[6]||'00'}`;
+  return null;
+}
+function ypfNormalizarPatente(raw){
+  const t = normalizarTextoConservandoMayus(raw).toUpperCase();
+  if(!t) return null;
+  return extraerPatenteClave(t) || t.replace(/\s+/g,'');
+}
+
+async function parseExcelYpf(file){
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type:'array' });
+  let enc = null, rows = null, sheetName = null;
+  for(const name of wb.SheetNames){
+    const r = XLSX.utils.sheet_to_json(wb.Sheets[name], { header:1, raw:true, defval:null });
+    const e = ypfDetectarEncabezados(r);
+    if(e){ enc = e; rows = r; sheetName = name; break; }
+  }
+  if(!enc){
+    return { errorGeneral:'No se encontraron las columnas de YPF en Ruta (FECHA, REMITO, IDENTIFICACION TARJETA, LITROS UNIDADES) en ninguna hoja del archivo. Descargá el "Reporte de consumos" desde YPF en Ruta y volvé a intentar.' };
+  }
+  const { idx, mapa } = enc;
+  const v = (r, campo) => mapa[campo]!==undefined ? r[mapa[campo]] : null;
+  const dataRows = rows.slice(idx+1);
+  const parsed = [], errores = [], vistos = new Set();
+  let totalFilas = 0, fechaMin = null, fechaMax = null;
+
+  dataRows.forEach((r, i)=>{
+    if(!r || r.every(c=>c===null || String(c).trim()==='')) return;
+    totalFilas++;
+    const fila = idx + 2 + i;
+    const remito = ypfTexto(v(r,'remito'));
+    const fecha = ypfFechaHora(v(r,'fecha'));
+    const patenteOriginal = ypfTexto(v(r,'patente'));
+    const litros = ypfNumero(v(r,'litros'));
+    if(!remito){ errores.push({ fila, motivo:'Sin número de remito' }); return; }
+    if(!fecha){ errores.push({ fila, remito, motivo:`Fecha no reconocida ("${ypfTexto(v(r,'fecha'))||''}")` }); return; }
+    if(!patenteOriginal){ errores.push({ fila, remito, motivo:'Sin patente en IDENTIFICACION TARJETA' }); return; }
+    if(litros===null){ errores.push({ fila, remito, motivo:'Sin litros' }); return; }
+    if(vistos.has(remito)){ errores.push({ fila, remito, motivo:'Remito repetido dentro del archivo' }); return; }
+    vistos.add(remito);
+    if(!fechaMin || fecha < fechaMin) fechaMin = fecha;
+    if(!fechaMax || fecha > fechaMax) fechaMax = fecha;
+    const fact = ypfTexto(v(r,'facturable'));
+    parsed.push({
+      remito, fecha, periodo: fecha.slice(0,7),
+      vehiculo_dominio: ypfNormalizarPatente(patenteOriginal),
+      patente_original: patenteOriginal,
+      tarjeta: ypfTexto(v(r,'tarjeta')),
+      contrato: ypfTexto(v(r,'contrato')),
+      subcuenta: ypfTexto(v(r,'subcuenta')),
+      centro_costo: ypfTexto(v(r,'centro_costo')),
+      establecimiento: ypfTexto(v(r,'establecimiento')),
+      domicilio: ypfTexto(v(r,'domicilio')),
+      localidad: ypfTexto(v(r,'localidad')),
+      provincia: ypfTexto(v(r,'provincia')),
+      conductor: ypfTexto(v(r,'conductor')),
+      conductor_tipo_doc: ypfTexto(v(r,'conductor_tipo_doc')),
+      conductor_nro_doc: YPF_GUARDAR_DNI ? ypfTexto(v(r,'conductor_nro_doc')) : null,
+      odometro: ypfNumero(v(r,'odometro')),
+      origen: ypfTexto(v(r,'origen')),
+      facturable: fact===null ? null : /^s/i.test(fact),
+      producto: ypfTexto(v(r,'producto')),
+      litros,
+      precio_pvp: ypfNumero(v(r,'precio_pvp')),
+      importe_pvp: ypfNumero(v(r,'importe_pvp')),
+      precio_yer: ypfNumero(v(r,'precio_yer')),
+      importe_yer: ypfNumero(v(r,'importe_yer')),
+      divisa: ypfTexto(v(r,'divisa')),
+      iva: ypfNumero(v(r,'iva')),
+      imp_co2: ypfNumero(v(r,'imp_co2')),
+      tasa_vial: ypfNumero(v(r,'tasa_vial')),
+      imp_comb_liq: ypfNumero(v(r,'imp_comb_liq')),
+      factura: ypfTexto(v(r,'factura')),
+      extracto: ypfTexto(v(r,'extracto')),
+    });
+  });
+  return { rows:parsed, errores, totalFilas, sheetName, fechaMin, fechaMax };
+}
+
+// Campos que se comparan contra lo guardado para decidir "actualizar" o "sin cambios".
+const YPF_CAMPOS_COMPARAR = ['fecha','vehiculo_dominio','producto','litros','importe_yer','importe_pvp','odometro','conductor','establecimiento','factura','extracto'];
+const YPF_NOMBRE_CAMPO = { fecha:'fecha', vehiculo_dominio:'patente', producto:'producto', litros:'litros', importe_yer:'importe', importe_pvp:'importe PVP', odometro:'odómetro', conductor:'conductor', establecimiento:'estación', factura:'factura', extracto:'extracto' };
+const YPF_CAMPOS_NUM = new Set(['litros','importe_yer','importe_pvp','odometro']);
+function ypfIgual(campo, a, b){
+  if(campo==='fecha') return String(a||'').replace('T',' ').slice(0,19) === String(b||'').replace('T',' ').slice(0,19);
+  if(YPF_CAMPOS_NUM.has(campo)){
+    if(a===null || a===undefined || b===null || b===undefined) return (a??null)===(b??null);
+    return Math.abs(Number(a) - Number(b)) < 0.005;
+  }
+  return String(a??'').trim() === String(b??'').trim();
+}
+
+function abrirModalImportarYpf(){
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal" style="width:680px;max-width:94vw;max-height:88vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3 style="margin:0;display:flex;align-items:center;gap:8px">${icon('upload')} Cargar planilla YPF</h3>
+      <button class="icon-btn" id="ypfi-close" title="Cerrar">${icon('close')}</button>
+    </div>
+    <div class="dropzone" id="ypfi-dz">
+      <div class="icon">${icon('upload')}</div>
+      <div><strong>Arrastrá el archivo acá</strong> o hacé clic para elegirlo</div>
+      <div class="muted" style="margin-top:4px;font-size:12px">Reporte de consumos de YPF en Ruta (.xlsx). Se puede volver a subir un período ya cargado: cada ticket se identifica por su remito y no se duplica.</div>
+      <input type="file" id="ypfi-file" accept=".xlsx,.xls" />
+    </div>
+    <div id="ypfi-result"></div>
+    <div class="section-title">Cargas anteriores</div>
+    <div class="table-wrap" id="ypfi-historial"><div class="empty"><span class="spin"></span></div></div>
+  </div>`;
+  document.body.appendChild(bg);
+  const cerrar = () => { if(state.importYpf?.importando) return; state.importYpf = null; bg.remove(); };
+  bg.querySelector('#ypfi-close').onclick = cerrar;
+  bg.addEventListener('click', e=>{ if(e.target===bg) cerrar(); });
+  const dz = bg.querySelector('#ypfi-dz'), input = bg.querySelector('#ypfi-file');
+  dz.onclick = () => input.click();
+  ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev, e=>{ e.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev, e=>{ e.preventDefault(); dz.classList.remove('drag'); }));
+  dz.addEventListener('drop', e=>{ if(e.dataTransfer.files[0]) ypfHandleFile(e.dataTransfer.files[0]); });
+  input.onchange = e=>{ if(e.target.files[0]) ypfHandleFile(e.target.files[0]); };
+  ypfLoadHistorial();
+}
+
+async function ypfLoadHistorial(){
+  const el = document.getElementById('ypfi-historial');
+  if(!el) return;
+  try{
+    const { data, error } = await state.sb.from('ypf_importaciones').select('*').order('fecha_carga', { ascending:false }).limit(20);
+    if(error) throw error;
+    if(!data.length){ el.innerHTML = '<div class="empty">Todavía no se cargó ninguna planilla YPF.</div>'; return; }
+    const fd = d => d ? d.split('-').reverse().join('/') : '—';
+    el.innerHTML = `<table>
+      <thead><tr><th>Fecha</th><th>Archivo</th><th>Tickets desde – hasta</th><th class="num">Nuevos</th><th class="num">Actualizados</th><th class="num">Sin cambios</th><th class="num">Errores</th><th>Estado</th></tr></thead>
+      <tbody>${data.map(i=>`<tr>
+        <td>${new Date(i.fecha_carga).toLocaleString('es-AR')}</td>
+        <td>${esc(i.nombre_archivo)}</td>
+        <td>${fd(i.fecha_desde)} – ${fd(i.fecha_hasta)}</td>
+        <td class="num">${i.registros_nuevos}</td>
+        <td class="num">${i.registros_actualizados}</td>
+        <td class="num">${i.registros_sin_cambios}</td>
+        <td class="num">${i.registros_error}</td>
+        <td>${esc(i.estado)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }catch(e){
+    el.innerHTML = ypfEsErrorDeTablas(e)
+      ? '<div class="empty">Faltan las tablas del Reporte YPF: corré <code>ypf_schema.sql</code> en Supabase antes de cargar.</div>'
+      : `<div class="empty">No se pudo cargar el historial (${esc(e.message||e)}).</div>`;
+  }
+}
+
+async function ypfHandleFile(file){
+  const resultEl = document.getElementById('ypfi-result');
+  resultEl.innerHTML = `<div class="empty"><span class="spin"></span> Leyendo planilla…</div>`;
+  try{
+    const hash = await hashFile(file);
+    const parsed = await parseExcelYpf(file);
+    if(parsed.errorGeneral){
+      resultEl.innerHTML = `<div class="panel"><div class="panel-body" style="padding-top:18px"><strong style="color:var(--red)">${esc(parsed.errorGeneral)}</strong></div></div>`;
+      return;
+    }
+    if(!parsed.rows.length && !parsed.errores.length){
+      resultEl.innerHTML = `<div class="panel"><div class="panel-body" style="padding-top:18px"><strong style="color:var(--red)">La planilla no tiene tickets debajo del encabezado.</strong></div></div>`;
+      return;
+    }
+    const { data: yaExiste, error: errHash } = await state.sb.from('ypf_importaciones').select('nombre_archivo, fecha_carga').eq('hash_archivo', hash).eq('estado','completado').limit(1);
+    if(errHash) throw errHash;
+    if(yaExiste && yaExiste.length){
+      const seguir = await confirmModal('Esta planilla ya se cargó',
+        `Se cargó el ${new Date(yaExiste[0].fecha_carga).toLocaleString('es-AR')} como "${yaExiste[0].nombre_archivo}". Podés cancelar o compararla igual contra lo guardado.`,
+        'Comparar igual');
+      if(!seguir){ resultEl.innerHTML = ''; return; }
+    }
+
+    resultEl.innerHTML = `<div class="empty"><span class="spin"></span> Comparando ${fmtNum(parsed.rows.length,0)} tickets con Supabase…</div>`;
+    const existentes = parsed.rows.length ? await sbSelectPaginado(()=>
+      state.sb.from('ypf_consumos').select('remito, ' + YPF_CAMPOS_COMPARAR.join(', '))
+        .gte('fecha', parsed.fechaMin).lte('fecha', parsed.fechaMax).order('remito', { ascending:true })
+    ) : [];
+    const porRemito = new Map(existentes.map(e=>[e.remito, e]));
+    const preview = parsed.rows.map(row=>{
+      const prev = porRemito.get(row.remito);
+      if(!prev) return { row, estado:'nuevo' };
+      const diffs = YPF_CAMPOS_COMPARAR.filter(c=>!ypfIgual(c, prev[c], row[c])).map(c=>({ campo:c, antes:prev[c], despues:row[c] }));
+      return { row, estado: diffs.length ? 'actualizar' : 'sin-cambios', diffs };
+    });
+    state.importYpf = { file, hash, parsed, preview };
+    ypfRenderPreview(resultEl);
+  }catch(e){
+    console.error(e);
+    resultEl.innerHTML = `<div class="panel"><div class="panel-body" style="padding-top:18px"><strong style="color:var(--red)">No se pudo procesar la planilla.</strong><p class="muted">${esc(ypfEsErrorDeTablas(e) ? 'Faltan las tablas del Reporte YPF: corré ypf_schema.sql en Supabase.' : (e.message||e))}</p></div></div>`;
+  }
+}
+
+function ypfRenderPreview(resultEl){
+  const { file, parsed, preview } = state.importYpf;
+  const c = { nuevo:0, actualizar:0, 'sin-cambios':0 };
+  preview.forEach(p=>c[p.estado]++);
+  const aGrabar = c.nuevo + c.actualizar;
+  const vehiculos = new Set(parsed.rows.map(r=>r.vehiculo_dominio)).size;
+  const fd = s => s ? s.slice(0,10).split('-').reverse().join('/') : '—';
+  const cambios = preview.filter(p=>p.estado==='actualizar');
+  const MAX = 200;
+  const filasDetalle = [
+    ...parsed.errores.map(e=>`<tr><td>${esc(e.remito||'—')}</td><td>Fila ${e.fila}</td><td>${badgeEstado('error')}</td><td><span class="muted">${esc(e.motivo)}</span></td></tr>`),
+    ...cambios.map(p=>`<tr><td>${esc(p.row.remito)}</td><td>${esc(p.row.patente_original)}</td><td>${badgeEstado('actualizar')}</td><td>${p.diffs.map(d=>`<span class="diff-old">${esc(String(d.antes ?? '—'))}</span> → <span class="diff-new">${esc(String(d.despues ?? '—'))}</span> <span class="muted">(${esc(YPF_NOMBRE_CAMPO[d.campo]||d.campo)})</span>`).join('<br>')}</td></tr>`),
+  ];
+  resultEl.innerHTML = `
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('search')}</span><h2>Planilla detectada</h2></div></div>
+      <div class="panel-body">
+        <p style="margin:0"><strong>Archivo:</strong> ${esc(file.name)} &nbsp;·&nbsp; <strong>Tickets:</strong> ${fmtNum(parsed.totalFilas,0)} &nbsp;·&nbsp; <strong>Desde</strong> ${fd(parsed.fechaMin)} <strong>hasta</strong> ${fd(parsed.fechaMax)} &nbsp;·&nbsp; <strong>Vehículos:</strong> ${fmtNum(vehiculos,0)}</p>
+        <div class="summary-strip">
+          <div class="summary-pill" style="border-color:#cdeedb"><div class="n" style="color:var(--green)">${fmtNum(c.nuevo,0)}</div><div class="l">Nuevos</div></div>
+          <div class="summary-pill" style="border-color:#f6e2b8"><div class="n" style="color:var(--amber-dark)">${fmtNum(c.actualizar,0)}</div><div class="l">Actualizar</div></div>
+          <div class="summary-pill"><div class="n" style="color:var(--slate-600)">${fmtNum(c['sin-cambios'],0)}</div><div class="l">Sin cambios</div></div>
+          <div class="summary-pill" style="border-color:#f3cec5"><div class="n" style="color:var(--red)">${fmtNum(parsed.errores.length,0)}</div><div class="l">Con errores (no se cargan)</div></div>
+        </div>
+        ${filasDetalle.length ? `<div class="table-wrap" style="max-height:300px;overflow-y:auto">
+          <table><thead><tr><th>Remito</th><th>Patente / fila</th><th>Estado</th><th>Detalle</th></tr></thead>
+          <tbody>${filasDetalle.slice(0,MAX).join('')}</tbody></table>
+        </div>${filasDetalle.length>MAX ? `<p class="muted" style="font-size:12px">Se muestran ${MAX} de ${fmtNum(filasDetalle.length,0)} filas con cambios o errores.</p>` : ''}` : ''}
+        <div style="display:flex;gap:10px;margin-top:18px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-secondary" id="ypfi-cancelar">Cancelar</button>
+          <button class="btn btn-primary" id="ypfi-confirmar" ${aGrabar===0?'disabled':''}>Confirmar importación</button>
+          <span class="muted" id="ypfi-progreso" style="font-size:12px">${aGrabar===0 ? 'No hay nada nuevo para guardar.' : `Se guardarán ${fmtNum(aGrabar,0)} tickets.`}</span>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('ypfi-cancelar').onclick = () => { state.importYpf = null; resultEl.innerHTML = ''; document.getElementById('ypfi-file').value = ''; };
+  document.getElementById('ypfi-confirmar').onclick = () => ypfEjecutarImportacion(resultEl);
+}
+
+async function ypfEjecutarImportacion(resultEl){
+  const btn = document.getElementById('ypfi-confirmar');
+  const prog = document.getElementById('ypfi-progreso');
+  const imp = state.importYpf;
+  const { file, hash, parsed, preview } = imp;
+  const aGrabar = preview.filter(p=>p.estado==='nuevo' || p.estado==='actualizar');
+  const nuevos = preview.filter(p=>p.estado==='nuevo').length;
+  const actualizados = aGrabar.length - nuevos;
+  const sinCambios = preview.length - aGrabar.length;
+  btn.disabled = true; btn.textContent = 'Importando…';
+  document.getElementById('ypfi-cancelar').disabled = true;
+  imp.importando = true;
+  let importacionId = null;
+  try{
+    const { data: importacion, error: errIni } = await state.sb.from('ypf_importaciones').insert({
+      nombre_archivo: file.name, hash_archivo: hash,
+      fecha_desde: parsed.fechaMin ? parsed.fechaMin.slice(0,10) : null,
+      fecha_hasta: parsed.fechaMax ? parsed.fechaMax.slice(0,10) : null,
+      total_registros: parsed.totalFilas, registros_error: parsed.errores.length, estado:'procesando',
+    }).select('id').single();
+    if(errIni) throw errIni;
+    importacionId = importacion.id;
+
+    for(let i=0; i<aGrabar.length; i+=YPF_LOTE_UPSERT){
+      const lote = aGrabar.slice(i, i+YPF_LOTE_UPSERT).map(p=>({ ...p.row, importacion_id: importacionId }));
+      const { error } = await state.sb.from('ypf_consumos').upsert(lote, { onConflict:'remito' });
+      if(error) throw error;
+      prog.textContent = `Guardados ${fmtNum(Math.min(i+YPF_LOTE_UPSERT, aGrabar.length),0)} de ${fmtNum(aGrabar.length,0)} tickets…`;
+    }
+
+    await state.sb.from('ypf_importaciones').update({
+      registros_nuevos: nuevos, registros_actualizados: actualizados, registros_sin_cambios: sinCambios, estado:'completado',
+    }).eq('id', importacionId);
+
+    invalidarCacheYpf();
+    state.importYpf = null;
+    resultEl.innerHTML = '';
+    document.getElementById('ypfi-file').value = '';
+    toast(`Planilla YPF cargada: ${fmtNum(nuevos,0)} nuevos, ${fmtNum(actualizados,0)} actualizados, ${fmtNum(sinCambios,0)} sin cambios.`, 'success');
+    ypfLoadHistorial();
+    if(state.view === 'ypf') renderView();
+  }catch(e){
+    console.error(e);
+    if(importacionId) await state.sb.from('ypf_importaciones').update({ estado:'error' }).eq('id', importacionId);
+    imp.importando = false;
+    toast('No se pudo completar la importación: ' + (e.message||e) + '. Los lotes ya guardados quedan; podés volver a cargar la misma planilla para completar.', 'error');
+    btn.disabled = false; btn.textContent = 'Reintentar importación';
+    document.getElementById('ypfi-cancelar').disabled = false;
   }
 }
 
