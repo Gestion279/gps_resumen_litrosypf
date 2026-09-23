@@ -319,6 +319,8 @@
 
   .modal.aud-modal{width:980px;max-width:100%;max-height:calc(100vh - 32px);padding:0;display:flex;flex-direction:column;overflow:hidden;}
   .aud-modal-head{display:flex;justify-content:space-between;gap:16px;padding:20px 24px 16px 24px;border-bottom:1px solid var(--slate-100);}
+  .aud-modal-actions{display:flex;align-items:flex-start;gap:8px;flex:none;}
+  .aud-modal-actions .btn{padding:7px 14px;font-size:12.5px;height:34px;}
   .aud-modal-kicker{font-size:11px;font-weight:600;color:var(--slate-400);text-transform:uppercase;letter-spacing:.05em;}
   .aud-modal-head h3{margin:3px 0 8px 0;font-size:18px;color:var(--navy-950);font-weight:700;}
   .aud-modal-estado{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;}
@@ -1980,7 +1982,10 @@ function audAbrirDetalle(ev){
         <h3>${esc(ev.dispositivo)}</h3>
         <div class="aud-modal-estado">${audBadge(ev.nivel)}<span class="muted">${esc(ev.motivo)}</span></div>
       </div>
-      <button class="icon-btn" id="aud-close" title="Cerrar">${icon('close')}</button>
+      <div class="aud-modal-actions">
+        <button class="btn btn-secondary" id="aud-pdf">${icon('download')} Exportar PDF</button>
+        <button class="icon-btn" id="aud-close" title="Cerrar">${icon('close')}</button>
+      </div>
     </div>
     <div class="aud-modal-body">
       <div class="aud-metrics">
@@ -2028,6 +2033,180 @@ function audAbrirDetalle(ev){
   document.addEventListener('keydown', onKey);
   bg.onclick = e => { if(e.target===bg) cerrar(); };
   bg.querySelector('#aud-close').onclick = cerrar;
+  bg.querySelector('#aud-pdf').onclick = (e) => audExportarPDF(ev, e.currentTarget);
+}
+
+/* ---------- Informe PDF del detalle de auditoría ---------- */
+// jsPDF se carga solo cuando se pide el primer PDF, para no demorar la app.
+const AUD_PDF_LIBS = [
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js',
+];
+let audPdfLibsPromesa = null;
+function audCargarLibsPDF(){
+  if(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API.autoTable) return Promise.resolve();
+  if(!audPdfLibsPromesa){
+    audPdfLibsPromesa = AUD_PDF_LIBS.reduce((p, src) => p.then(() => new Promise((ok, fail) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = ok;
+      s.onerror = () => fail(new Error('No se pudo cargar la librería de PDF. Revisá la conexión a internet.'));
+      document.head.appendChild(s);
+    })), Promise.resolve()).catch(e => { audPdfLibsPromesa = null; throw e; });
+  }
+  return audPdfLibsPromesa;
+}
+// Las fuentes estándar del PDF no tienen algunos símbolos: se reemplazan.
+const pdfTxt = v => String(v ?? '')
+  .replace(/≤/g,'<=').replace(/≥/g,'>=').replace(/→/g,'->').replace(/[—–]/g,'-')
+  .replace(/[\u202F\u00A0]/g,' ').replace(/[^\x00-\xFF]/g,'');
+
+async function audExportarPDF(ev, btn){
+  const textoOriginal = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.innerHTML = `<span class="spin"></span> Generando PDF…`; }
+  try{
+    await audCargarLibsPDF();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'mm', format:'a4' });
+    const W = doc.internal.pageSize.getWidth(), M = 14;
+    const hist = state._audHist.get(ev.dispositivo) || [];
+    const d = ev.datos, r = ev.ref, dv = ev.desv;
+    const NAVY = [15,42,71], GRIS = [110,118,132], LINEA = [221,225,232];
+    const COL_NIVEL = { 0:[79,115,72], 1:[138,109,12], 2:[164,90,20], 3:[168,55,42] };
+    const FONDO_NIVEL = { 0:[238,244,236], 1:[251,245,220], 2:[252,239,224], 3:[251,232,228] };
+    const nivelLabel = n => AUD_NIVELES[n].label;
+    const nivelCat = (cat, filtro) => ev.senales.filter(s=>s.cat===cat && (!filtro || filtro(s))).reduce((m,s)=>Math.max(m,s.nivel),0);
+
+    // --- Encabezado ---
+    doc.setFillColor(27,64,121); doc.rect(0,0,W,4,'F');
+    doc.setTextColor(...GRIS); doc.setFont('helvetica','bold'); doc.setFontSize(8);
+    doc.text('CONSUMOS DE VEHÍCULOS · AUDITORÍA DE CONSUMOS Y RENDIMIENTO', M, 13);
+    doc.setTextColor(...NAVY); doc.setFontSize(15);
+    doc.text(doc.splitTextToSize(pdfTxt(ev.dispositivo), W-2*M)[0], M, 21);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...GRIS);
+    const emitido = new Date().toLocaleString('es-AR', { dateStyle:'short', timeStyle:'short' });
+    doc.text(pdfTxt(`Período evaluado: ${periodoLabelCorta(ev.periodo)}    ·    Emitido: ${emitido}`), M, 27);
+
+    // Estado
+    let y = 33;
+    doc.setFillColor(...FONDO_NIVEL[ev.nivel]); doc.roundedRect(M, y, W-2*M, 14, 2, 2, 'F');
+    doc.setFillColor(...COL_NIVEL[ev.nivel]); doc.circle(M+5, y+5.2, 1.4, 'F');
+    doc.setTextColor(...COL_NIVEL[ev.nivel]); doc.setFont('helvetica','bold'); doc.setFontSize(10.5);
+    doc.text(pdfTxt(`Estado: ${nivelLabel(ev.nivel)}`), M+9, y+6.3);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...GRIS);
+    doc.text(doc.splitTextToSize(pdfTxt(ev.motivo), W-2*M-12)[0], M+9, y+11);
+    y += 20;
+
+    const titulo = (t) => {
+      if(y > 265){ doc.addPage(); y = 18; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(...NAVY);
+      doc.text(pdfTxt(t), M, y); y += 3;
+    };
+    const tablaBase = {
+      margin:{ left:M, right:M, top:16, bottom:18 },
+      styles:{ font:'helvetica', fontSize:8, cellPadding:1.8, textColor:[42,50,66], lineColor:LINEA, lineWidth:0.1, overflow:'linebreak' },
+      headStyles:{ fillColor:[246,247,249], textColor:[83,92,108], fontStyle:'bold', fontSize:7.5 },
+      alternateRowStyles:{ fillColor:[252,252,253] },
+    };
+    const colorearNivel = (colIdx, niveles) => (data) => {
+      if(data.section==='body' && data.column.index===colIdx){
+        const n = niveles[data.row.index];
+        if(n!==undefined && n!==null){ data.cell.styles.textColor = COL_NIVEL[n]; data.cell.styles.fontStyle = 'bold'; }
+      }
+    };
+
+    // --- Indicadores ---
+    titulo('Indicadores del período frente a su propio histórico');
+    const refTxt = (x, dec, u='') => x.suficiente ? `${fmtNum(x.mediana,dec)}${u}` : 'Sin historial';
+    const promTxt = (x, dec, u='') => x.suficiente ? `${fmtNum(x.promedio,dec)}${u}` : '-';
+    const val = (v, dec, u='') => v===null ? '-' : `${fmtNum(v,dec)}${u}`;
+    const filasInd = [
+      ['Km/L', val(d.kml,2), refTxt(r.kml,2), promTxt(r.kml,2), String(r.kml.n), fmtPct(dv.kml), nivelCat('consumo', s=>s.indicador==='Km/L')],
+      ['L/100 km', val(d.l100,2), refTxt(r.l100,2), promTxt(r.l100,2), String(r.l100.n), fmtPct(dv.l100), nivelCat('consumo', s=>s.indicador==='L/100 km')],
+      ['% ralentí', val(d.ralentiPct,1,' %'), refTxt(r.ralentiPct,1,' %'), promTxt(r.ralentiPct,1,' %'), String(r.ralentiPct.n), fmtPP(dv.ralentiPP), nivelCat('ralenti')],
+      ['Km por hora motor', val(d.kmHora,1), refTxt(r.kmHora,1), promTxt(r.kmHora,1), String(r.kmHora.n), fmtPct(dv.kmHora), nivelCat('kmhora')],
+      ['Velocidad máxima', val(d.vel,0,' km/h'), refTxt(r.vel,0,' km/h'), promTxt(r.vel,0,' km/h'), String(r.vel.n), fmtPct(dv.vel), nivelCat('velocidad')],
+    ];
+    doc.autoTable({ ...tablaBase, startY:y,
+      head:[['Indicador','Actual','Histórico (mediana)','Promedio histórico','Períodos previos','Desvío','Nivel']],
+      body: filasInd.map(f => [...f.slice(0,6), nivelLabel(f[6])].map(pdfTxt)),
+      columnStyles:{ 0:{fontStyle:'bold'}, 1:{halign:'right'}, 2:{halign:'right'}, 3:{halign:'right'}, 4:{halign:'center'}, 5:{halign:'right'} },
+      didParseCell: colorearNivel(6, filasInd.map(f=>f[6])),
+    });
+    y = doc.lastAutoTable.finalY + 4;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...GRIS);
+    const vsMes = ev.anterior
+      ? (dv.kmlMensual!==null ? `Km/L vs. ${periodoLabelCorta(ev.anterior.periodo)} (${fmtNum(ev.anterior.kml,2)}): ${fmtPct(dv.kmlMensual)}.` : 'Período anterior sin Km/L calculable.')
+      : 'Sin período anterior comparable.';
+    const lineasDato = doc.splitTextToSize(pdfTxt(
+      `${vsMes}  Km reportados: ${fmtNum(d.kmReportado,0)} · Km utilizados en los indicadores: ${fmtNum(d.km,0)} · Registros del período: ${d.registros.length}`
+      + (d.excluidos.length ? ` (${d.excluidos.length} excluido(s) por superar ${fmtNum(MAX_KM_MENSUAL,0)} km/mes; el dato original no se modifica).` : '.')
+    ), W-2*M);
+    doc.text(lineasDato, M, y); y += lineasDato.length*3.6 + 6;
+
+    // --- Señales ---
+    titulo('Señales detectadas');
+    if(ev.senales.length){
+      doc.autoTable({ ...tablaBase, startY:y,
+        head:[['Nivel','Señal','Indicador','Valor','Referencia','Desvío','Regla aplicada']],
+        body: ev.senales.map(s => [nivelLabel(s.nivel), s.titulo, s.indicador, s.valor||'-', s.referencia||'-', s.desvio||'-', s.regla].map(pdfTxt)),
+        columnStyles:{ 0:{cellWidth:20}, 1:{cellWidth:38, fontStyle:'bold'}, 2:{cellWidth:20}, 3:{cellWidth:17, halign:'right'}, 4:{cellWidth:28}, 5:{cellWidth:15, halign:'right'}, 6:{fontSize:7, textColor:[83,92,108]} },
+        didParseCell: colorearNivel(0, ev.senales.map(s=>s.nivel)),
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    } else {
+      y += 2; doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...GRIS);
+      doc.text('No se detectan señales relevantes en este período.', M, y+2); y += 10;
+    }
+
+    // --- Historial ---
+    titulo('Historial del dispositivo');
+    const histOrden = [...hist].reverse();
+    doc.autoTable({ ...tablaBase, startY:y,
+      head:[['Período','Km','Litros','Km/L','L/100','Hs motor','Hs ralentí','% ralentí','Vel. máx','Estado']],
+      body: histOrden.map(h => { const x = h.datos; return [
+        periodoLabelCorta(h.periodo) + (x.excluidos.length ? ' *' : ''), fmtNum(x.km,0), fmtNum(x.litros,1), fmtNum(x.kml,2), fmtNum(x.l100,2),
+        fmtNum(x.hm,1), fmtNum(x.hr,1), x.ralentiPct===null ? '-' : fmtNum(x.ralentiPct,1)+' %', fmtNum(x.vel,0), nivelLabel(h.nivel),
+      ].map(pdfTxt); }),
+      columnStyles:{ 1:{halign:'right'},2:{halign:'right'},3:{halign:'right'},4:{halign:'right'},5:{halign:'right'},6:{halign:'right'},7:{halign:'right'},8:{halign:'right'} },
+      didParseCell: (data) => {
+        colorearNivel(9, histOrden.map(h=>h.nivel))(data);
+        if(data.section==='body' && histOrden[data.row.index].periodo===ev.periodo){
+          data.cell.styles.fillColor = [238,243,250];
+          if(data.column.index!==9) data.cell.styles.fontStyle = 'bold';
+        }
+      },
+    });
+    y = doc.lastAutoTable.finalY + 5;
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
+    const notas = [];
+    if(hist.some(h=>h.datos.excluidos.length)) notas.push(`* Período con registro excluido por superar ${fmtNum(MAX_KM_MENSUAL,0)} km/mes: se muestran los km utilizados en los indicadores.`);
+    notas.push(`Criterio: cada indicador se compara con la mediana de hasta ${AUDIT_CFG.ventanaHistorico} períodos anteriores del mismo dispositivo (mínimo ${AUDIT_CFG.minHistorico}). El período evaluado no integra su propia referencia. No se compara con otros dispositivos.`);
+    notas.push('Los estados son niveles de revisión, no diagnósticos: indican señales que requieren análisis. La evaluación final corresponde al responsable de la revisión.');
+    notas.forEach(n => {
+      const l = doc.splitTextToSize(pdfTxt(n), W-2*M);
+      if(y + l.length*3.3 > 282){ doc.addPage(); y = 18; }
+      doc.text(l, M, y); y += l.length*3.3 + 1.5;
+    });
+
+    // --- Pie de página en todas las hojas ---
+    const total = doc.getNumberOfPages();
+    for(let i=1; i<=total; i++){
+      doc.setPage(i);
+      doc.setDrawColor(...LINEA); doc.setLineWidth(0.2); doc.line(M, 287, W-M, 287);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...GRIS);
+      doc.text(pdfTxt(`Auditoría de consumos · ${ev.dispositivo} · ${periodoLabelCorta(ev.periodo)}`), M, 291);
+      doc.text(`Página ${i} de ${total}`, W-M, 291, { align:'right' });
+    }
+
+    const nombre = `auditoria_${ev.dispositivo}_${ev.periodo}`.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9_-]+/g,'_');
+    doc.save(`${nombre}.pdf`);
+    toast('Informe PDF descargado.', 'success');
+  }catch(e){
+    console.error(e);
+    toast('No se pudo generar el PDF: ' + (e.message || e), 'error');
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = textoOriginal; }
+  }
 }
 
 function audExportarCSV(lista){
