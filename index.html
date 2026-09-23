@@ -267,6 +267,90 @@
     background:var(--slate-50);box-shadow:inset 0 -1px 0 var(--slate-200), 1px 0 0 var(--slate-200);
   }
 
+  /* ---------- Auditoría de consumos ---------- */
+  .aud-head{margin-bottom:16px;}
+  .aud-head h2{font-size:18px;margin:0;font-weight:700;color:var(--navy-950);letter-spacing:-.2px;}
+  .aud-head p{margin:3px 0 0 0;font-size:12.5px;color:var(--slate-400);}
+  .aud-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:22px;}
+  .aud-card{
+    text-align:left;background:#fff;border:1px solid var(--slate-100);border-radius:var(--radius-sm);
+    box-shadow:var(--shadow-card);padding:13px 15px;font:inherit;color:inherit;border-top:3px solid var(--slate-200);
+    transition:border-color .12s ease, box-shadow .12s ease;
+  }
+  .aud-card:hover{box-shadow:0 2px 10px rgba(15,42,71,.08);}
+  .aud-card.activa{border-color:var(--slate-200);box-shadow:0 0 0 2px #dfe6f0;}
+  .aud-card-prioritaria{border-top-color:#c0432f;}
+  .aud-card-revisar{border-top-color:#dd8a2e;}
+  .aud-card-observar{border-top-color:#e2bf3a;}
+  .aud-card-normal{border-top-color:#8FAD88;}
+  .aud-card-top{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:var(--slate-600);}
+  .aud-card-n{font-size:22px;font-weight:700;color:var(--navy-950);margin-top:6px;letter-spacing:-.3px;}
+  .aud-card-sub{font-size:10.5px;color:var(--slate-400);margin-top:1px;}
+
+  .aud-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor;flex:none;}
+  .aud-dot-normal{color:#7fa377;} .aud-dot-observar{color:#d9b22c;} .aud-dot-revisar{color:#dd8a2e;} .aud-dot-prioritaria{color:#c0432f;}
+  .aud-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:600;white-space:nowrap;}
+  .aud-badge.aud-normal{background:#eef4ec;color:#4f7348;}
+  .aud-badge.aud-observar{background:#fbf5dc;color:#8a6d0c;}
+  .aud-badge.aud-revisar{background:#fcefe0;color:#a45a14;}
+  .aud-badge.aud-prioritaria{background:#fbe8e4;color:#a8372a;}
+  .aud-txt-1{color:#8a6d0c;} .aud-txt-2{color:#a45a14;} .aud-txt-3{color:#a8372a;font-weight:600;}
+  .aud-sub{display:block;font-size:10.5px;color:var(--slate-400);font-weight:500;}
+
+  .aud-table td{vertical-align:middle;}
+  .aud-table td.sticky-col{min-width:210px;}
+  .aud-senales-cell{max-width:320px;overflow:hidden;text-overflow:ellipsis;color:var(--slate-600);font-size:12.5px;}
+  .aud-n{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:var(--slate-100);color:var(--slate-800);font-size:10.5px;font-weight:700;margin-right:7px;}
+  .aud-table tbody tr.row-click:hover td{background:#f1f5f9;}
+
+  .aud-criterios{display:block;}
+  .aud-criterios summary{display:flex;align-items:flex-start;gap:12px;padding:16px 22px;cursor:pointer;list-style:none;}
+  .aud-criterios summary::-webkit-details-marker{display:none;}
+  .aud-criterios summary .ic{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:none;}
+  .aud-criterios summary .ic svg{width:15px;height:15px;}
+  .aud-criterios summary h2{font-size:15px;margin:0;font-weight:700;color:var(--navy-950);}
+  .aud-criterios summary .sub{font-size:11.5px;color:var(--slate-400);margin-top:2px;}
+  .aud-toggle{margin-left:auto;font-size:11.5px;color:var(--slate-400);white-space:nowrap;}
+  .aud-criterios[open] .aud-toggle{visibility:hidden;}
+  .aud-criterios-body{padding:0 22px 20px 66px;font-size:12.5px;color:var(--slate-600);line-height:1.55;}
+  .aud-criterios-body p{margin:0 0 10px 0;}
+  .aud-crit-table{margin:4px 0 14px 0;font-size:12px;border:1px solid var(--slate-100);border-radius:var(--radius-sm);}
+  .aud-crit-table th{padding:8px 12px;} .aud-crit-table td{padding:7px 12px;}
+
+  .modal.aud-modal{width:980px;max-width:100%;max-height:calc(100vh - 32px);padding:0;display:flex;flex-direction:column;overflow:hidden;}
+  .aud-modal-head{display:flex;justify-content:space-between;gap:16px;padding:20px 24px 16px 24px;border-bottom:1px solid var(--slate-100);}
+  .aud-modal-kicker{font-size:11px;font-weight:600;color:var(--slate-400);text-transform:uppercase;letter-spacing:.05em;}
+  .aud-modal-head h3{margin:3px 0 8px 0;font-size:18px;color:var(--navy-950);font-weight:700;}
+  .aud-modal-estado{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;}
+  .aud-modal-body{padding:18px 24px 24px 24px;overflow-y:auto;}
+  .aud-modal-body h4{font-size:13px;font-weight:700;color:var(--navy-950);margin:22px 0 10px 0;}
+  .aud-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+  .aud-metric{border:1px solid var(--slate-100);border-radius:var(--radius-sm);padding:12px 14px;background:#fff;}
+  .aud-metric-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--navy-950);margin-bottom:10px;min-height:22px;}
+  .aud-metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+  .aud-metric-grid .l{font-size:10.5px;color:var(--slate-400);font-weight:600;}
+  .aud-metric-grid .v{font-size:15px;font-weight:700;color:var(--navy-950);margin-top:2px;font-variant-numeric:tabular-nums;}
+  .aud-metric-foot{font-size:11px;color:var(--slate-400);margin-top:9px;line-height:1.45;}
+  .aud-scroll-x{overflow-x:auto;border:1px solid var(--slate-100);border-radius:var(--radius-sm);}
+  .aud-senales, .aud-hist{font-size:12px;}
+  .aud-senales th, .aud-hist th{padding:8px 11px;background:#fff;}
+  .aud-senales td, .aud-hist td{padding:7px 11px;}
+  .aud-senales td.strong{font-weight:600;color:var(--navy-950);white-space:normal;min-width:200px;}
+  .aud-regla{white-space:normal !important;min-width:240px;color:var(--slate-600);font-size:11.5px;}
+  .aud-hist-wrap{max-height:320px;overflow:auto;}
+  .aud-hist thead th{position:sticky;top:0;z-index:1;box-shadow:inset 0 -1px 0 var(--slate-200);}
+  .aud-hist tr.actual td{background:#eef3fa;font-weight:600;}
+  .aud-strip{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .aud-strip-item{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--slate-600);padding:3px 8px;border:1px solid var(--slate-100);border-radius:99px;background:#fff;}
+  .aud-strip-item.actual{border-color:#1B4079;color:var(--navy-950);font-weight:700;}
+  .aud-nota{font-size:11px;margin-top:8px;}
+
+  @media (max-width: 900px){
+    .aud-cards{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .aud-metrics{grid-template-columns:minmax(0,1fr);}
+    .aud-criterios-body{padding-left:22px;}
+  }
+
   /* ---------- Alerta compacta de km improbables ---------- */
   .km-alert{background:#fff;border:1px solid #f0cec7;border-radius:var(--radius-sm);margin-bottom:14px;font-size:12.5px;}
   .km-alert summary{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;list-style:none;}
@@ -976,6 +1060,7 @@ function render(){
         ${tabItem('km','Km recorridos')}
         ${tabItem('litros','Litros consumidos')}
         ${tabItem('indicadores','Indicadores')}
+        ${tabItem('auditoria','Auditoría')}
       </div>
       <div class="content" id="content">Cargando…</div>
     </div>
@@ -1052,6 +1137,7 @@ async function renderView(){
     else if(state.view === 'km') await renderKmRecorridos(content);
     else if(state.view === 'litros') await renderLitrosConsumidos(content);
     else if(state.view === 'indicadores') await renderIndicadores(content);
+    else if(state.view === 'auditoria') await renderAuditoria(content);
     else if(state.view === 'historico') await renderHistorico(content);
   }catch(e){
     console.error(e);
@@ -1399,6 +1485,568 @@ async function renderLitrosConsumidos(content){
     document.getElementById('litros-export').onclick = () => exportarPivotCSV(pivotLitros, 'litros_consumidos', 1);
   }
 }
+/* =========================================================================
+   AUDITORÍA DE CONSUMOS Y RENDIMIENTO
+   -------------------------------------------------------------------------
+   Unidad de análisis: DISPOSITIVO + PERÍODO.
+   - El identificador es SIEMPRE el texto exacto de "dispositivo_original".
+     No se separa en patente/modelo/zona ni se normaliza.
+   - Cada dispositivo se compara SOLO contra su propio historial (períodos
+     anteriores del mismo dispositivo). Nunca contra otros dispositivos.
+   - Todo se calcula en el navegador a partir de gps_reportes (la copia en
+     memoria que ya usan las demás hojas). No se escribe nada en Supabase.
+   - Los estados son niveles de revisión, no diagnósticos.
+   ========================================================================= */
+
+// Umbrales de la auditoría. Se pueden ajustar acá; la pantalla los muestra
+// en "Criterios de la auditoría" para que cualquier alerta sea explicable.
+const AUDIT_CFG = {
+  minHistorico: 3,        // períodos previos necesarios para comparar contra el histórico
+  ventanaHistorico: 12,   // se usan como máximo los últimos 12 períodos previos
+  // Desvío % de Km/L contra su referencia histórica (valores negativos = rinde menos)
+  kml:   { observar: -10, revisar: -15, prioritaria: -25 },
+  kmlAlto: 35,            // Km/L por encima de +35 % de su histórico → dato atípico (posibles litros no registrados)
+  // Desvío % de L/100 km contra su referencia histórica (valores positivos = consume más)
+  l100:  { observar: 11, revisar: 18, prioritaria: 33 },
+  // Variación % de Km/L contra el período anterior (mes calendario inmediato)
+  kmlMensual: { observar: -15, revisar: -25 },
+  // Diferencia en puntos porcentuales del % de ralentí contra su histórico
+  ralentiPP: { observar: 5, revisar: 10, prioritaria: 20 },
+  // Desvío % (en valor absoluto) de km por hora motor contra su histórico
+  kmHora: { observar: 30, revisar: 50 },
+  // Desvío % de la velocidad máxima sobre su histórico
+  velocidad: { observar: 15, revisar: 25 },
+  // Límite de plausibilidad de GPS: por encima se considera posible error de lectura
+  velocidadMaxPlausible: 200,
+};
+
+const AUD_NIVELES = [
+  { n:0, key:'normal',      label:'Normal' },
+  { n:1, key:'observar',    label:'Observar' },
+  { n:2, key:'revisar',     label:'Revisar' },
+  { n:3, key:'prioritaria', label:'Revisión prioritaria' },
+];
+const AUD_CATEGORIAS = {
+  consumo:      'Consumo (Km/L · L/100 km)',
+  ralenti:      'Ralentí',
+  kmhora:       'Km por hora motor',
+  velocidad:    'Velocidad máxima',
+  calidad:      'Calidad de datos',
+  persistencia: 'Persistencia',
+};
+const AUD_CAT_RENDIMIENTO = ['consumo','ralenti','kmhora','velocidad'];
+
+/* ---------- utilidades numéricas ---------- */
+const audNum = v => (v===null || v===undefined || v==='' || isNaN(v)) ? null : Number(v);
+function audSuma(regs, campo){
+  let hay = false, s = 0;
+  regs.forEach(r => { const v = audNum(r[campo]); if(v!==null){ hay = true; s += v; } });
+  return hay ? s : null;
+}
+function audMax(regs, campo){
+  let m = null;
+  regs.forEach(r => { const v = audNum(r[campo]); if(v!==null && (m===null || v>m)) m = v; });
+  return m;
+}
+function audMediana(vals){
+  if(!vals.length) return null;
+  const a = [...vals].sort((x,y)=>x-y), m = Math.floor(a.length/2);
+  return a.length % 2 ? a[m] : (a[m-1]+a[m])/2;
+}
+const audPromedio = vals => vals.length ? vals.reduce((s,v)=>s+v,0)/vals.length : null;
+const audPct = (actual, ref) => (actual===null || ref===null || !ref) ? null : ((actual/ref) - 1) * 100;
+function nivelPorUmbral(valor, u, sentido){
+  // sentido 'bajo': el valor es malo cuanto más negativo; 'alto': cuanto más positivo
+  if(valor===null) return 0;
+  const ok = (lim) => lim!==undefined && (sentido==='bajo' ? valor <= lim : valor >= lim);
+  if(ok(u.prioritaria)) return 3;
+  if(ok(u.revisar)) return 2;
+  if(ok(u.observar)) return 1;
+  return 0;
+}
+const fmtPct = (v, dec=1) => v===null ? '—' : `${v>0?'+':''}${fmtNum(v,dec)} %`;
+const fmtPP  = (v, dec=1) => v===null ? '—' : `${v>0?'+':''}${fmtNum(v,dec)} pp`;
+
+/* ---------- 1) Datos por dispositivo + período ---------- */
+function audConstruirPeriodos(regsDelPeriodo){
+  const { validas, sospechosas } = marcarSospechosos(regsDelPeriodo);   // regla existente (> 20.000 km)
+  const km = audSuma(validas,'distancia_km'), litros = audSuma(validas,'litros_ypf');
+  const hm = audSuma(validas,'horas_motor'), hr = audSuma(validas,'horas_ralenti');
+  const vel = audMax(validas,'velocidad_maxima');
+  const ralentiValido = hm!==null && hr!==null && hm>0 && hr<=hm;
+  return {
+    registros: regsDelPeriodo, excluidos: sospechosas, validos: validas,
+    kmReportado: audSuma(regsDelPeriodo,'distancia_km'),
+    km, litros, hm, hr, vel,
+    kml:  (km>0 && litros>0) ? km/litros : null,
+    l100: (km>0 && litros>0) ? litros/(km/100) : null,
+    ralentiPct: ralentiValido ? hr/hm*100 : null,
+    kmHora: (km>0 && hm>0) ? km/hm : null,
+    velPlausible: (vel!==null && vel>0 && vel<=AUDIT_CFG.velocidadMaxPlausible) ? vel : null,
+  };
+}
+
+// Referencia histórica de un indicador: solo períodos ANTERIORES del mismo
+// dispositivo (nunca el período evaluado), los últimos "ventanaHistorico".
+function audReferencia(previos, campo){
+  const vals = previos.map(p=>p[campo]).filter(v=>v!==null).slice(-AUDIT_CFG.ventanaHistorico);
+  const suficiente = vals.length >= AUDIT_CFG.minHistorico;
+  return {
+    n: vals.length, suficiente,
+    mediana: suficiente ? audMediana(vals) : null,
+    promedio: suficiente ? audPromedio(vals) : null,
+    maximo: suficiente ? Math.max(...vals) : null,
+  };
+}
+
+/* ---------- 2) Reglas → señales ---------- */
+// Cada señal es trazable: categoría, nivel, indicador, valor, referencia,
+// desvío y la regla que la generó.
+function audSenal(cat, nivel, titulo, extra={}){
+  return { cat, nivel, titulo, indicador:'', valor:'', referencia:'', desvio:'', regla:'', ...extra };
+}
+
+function audEvaluarPeriodo(d, previos, anterior){
+  const S = [];
+  const cfg = AUDIT_CFG;
+  const ref = {
+    kml: audReferencia(previos,'kml'), l100: audReferencia(previos,'l100'),
+    ralentiPct: audReferencia(previos,'ralentiPct'), kmHora: audReferencia(previos,'kmHora'),
+    vel: audReferencia(previos,'velPlausible'),
+  };
+  const desv = {
+    kml: ref.kml.suficiente ? audPct(d.kml, ref.kml.mediana) : null,
+    l100: ref.l100.suficiente ? audPct(d.l100, ref.l100.mediana) : null,
+    ralentiPP: (ref.ralentiPct.suficiente && d.ralentiPct!==null) ? d.ralentiPct - ref.ralentiPct.mediana : null,
+    kmHora: ref.kmHora.suficiente ? audPct(d.kmHora, ref.kmHora.mediana) : null,
+    vel: ref.vel.suficiente ? audPct(d.velPlausible, ref.vel.mediana) : null,
+    kmlMensual: (anterior && anterior.kml!==null) ? audPct(d.kml, anterior.kml) : null,
+  };
+  const refTxt = (r, dec, u='') => `${fmtNum(r.mediana,dec)}${u} (mediana de ${r.n} períodos previos)`;
+
+  // --- Consumo: Km/L y L/100 km contra su histórico ---
+  const nKml = nivelPorUmbral(desv.kml, cfg.kml, 'bajo');
+  if(nKml) S.push(audSenal('consumo', nKml, 'Consumo inferior a su comportamiento histórico', {
+    indicador:'Km/L', valor:fmtNum(d.kml,2), referencia:refTxt(ref.kml,2), desvio:fmtPct(desv.kml),
+    regla:`Km/L ≤ ${cfg.kml.observar} % vs. su histórico (Observar), ≤ ${cfg.kml.revisar} % (Revisar), ≤ ${cfg.kml.prioritaria} % (Prioritaria)`,
+  }));
+  if(desv.kml!==null && desv.kml >= cfg.kmlAlto) S.push(audSenal('consumo', 1, 'Dato atípico: rendimiento muy superior a su histórico', {
+    indicador:'Km/L', valor:fmtNum(d.kml,2), referencia:refTxt(ref.kml,2), desvio:fmtPct(desv.kml),
+    regla:`Km/L ≥ +${cfg.kmlAlto} % vs. su histórico. Puede indicar litros no registrados en el período.`,
+  }));
+  const nL100 = nivelPorUmbral(desv.l100, cfg.l100, 'alto');
+  if(nL100) S.push(audSenal('consumo', nL100, 'Litros cada 100 km por encima de su histórico', {
+    indicador:'L/100 km', valor:fmtNum(d.l100,2), referencia:refTxt(ref.l100,2), desvio:fmtPct(desv.l100),
+    regla:`L/100 km ≥ +${cfg.l100.observar} % vs. su histórico (Observar), ≥ +${cfg.l100.revisar} % (Revisar), ≥ +${cfg.l100.prioritaria} % (Prioritaria)`,
+  }));
+  // --- Variación mensual de Km/L ---
+  const nMes = nivelPorUmbral(desv.kmlMensual, cfg.kmlMensual, 'bajo');
+  if(nMes) S.push(audSenal('consumo', nMes, 'Cambio brusco de Km/L respecto del período anterior', {
+    indicador:'Km/L', valor:fmtNum(d.kml,2), referencia:`${fmtNum(anterior.kml,2)} (${periodoLabelCorta(anterior.periodo)})`, desvio:fmtPct(desv.kmlMensual),
+    regla:`Variación ≤ ${cfg.kmlMensual.observar} % vs. el mes anterior (Observar), ≤ ${cfg.kmlMensual.revisar} % (Revisar)`,
+  }));
+
+  // --- Ralentí ---
+  const nRal = nivelPorUmbral(desv.ralentiPP, cfg.ralentiPP, 'alto');
+  if(nRal){
+    const superaMax = d.ralentiPct > ref.ralentiPct.maximo;
+    S.push(audSenal('ralenti', nRal, 'Incremento del ralentí respecto del histórico', {
+      indicador:'% ralentí', valor:`${fmtNum(d.ralentiPct,1)} %`, referencia:refTxt(ref.ralentiPct,1,' %'), desvio:fmtPP(desv.ralentiPP),
+      regla:`% ralentí ≥ +${cfg.ralentiPP.observar} pp sobre su histórico (Observar), ≥ +${cfg.ralentiPP.revisar} pp (Revisar), ≥ +${cfg.ralentiPP.prioritaria} pp (Prioritaria)`
+        + (superaMax ? `. Además supera el máximo de su historial (${fmtNum(ref.ralentiPct.maximo,1)} %).` : ''),
+    }));
+  }
+
+  // --- Km por hora motor (coherencia) ---
+  const absKmH = desv.kmHora===null ? null : Math.abs(desv.kmHora);
+  const nKmH = nivelPorUmbral(absKmH, cfg.kmHora, 'alto');
+  if(nKmH) S.push(audSenal('kmhora', nKmH, desv.kmHora<0 ? 'Km por hora motor inferior a su comportamiento habitual' : 'Km por hora motor superior a su comportamiento habitual', {
+    indicador:'Km / hora motor', valor:fmtNum(d.kmHora,1), referencia:refTxt(ref.kmHora,1), desvio:fmtPct(desv.kmHora),
+    regla:`Desvío de ±${cfg.kmHora.observar} % vs. su histórico (Observar), ±${cfg.kmHora.revisar} % (Revisar)`,
+  }));
+
+  // --- Velocidad máxima ---
+  const nVel = nivelPorUmbral(desv.vel, cfg.velocidad, 'alto');
+  if(nVel) S.push(audSenal('velocidad', nVel, 'Velocidad máxima atípica respecto del histórico', {
+    indicador:'Velocidad máx.', valor:`${fmtNum(d.vel,0)} km/h`, referencia:refTxt(ref.vel,0,' km/h'), desvio:fmtPct(desv.vel),
+    regla:`Velocidad ≥ +${cfg.velocidad.observar} % sobre su histórico (Observar), ≥ +${cfg.velocidad.revisar} % (Revisar). No implica un exceso real: puede ser un error de GPS.`,
+  }));
+
+  // --- Calidad de datos ---
+  if(d.registros.length > 1) S.push(audSenal('calidad', 2, `Registro duplicado: ${d.registros.length} registros para el mismo dispositivo y período`, {
+    indicador:'Registros', valor:String(d.registros.length), referencia:'1',
+    regla:'Más de un registro con el mismo dispositivo_original y período. Los indicadores los suman, igual que las demás hojas.',
+  }));
+  d.excluidos.forEach(r => S.push(audSenal('calidad', 2, 'Registro excluido de los indicadores por km excesivos', {
+    indicador:'Km reportados', valor:`${fmtNum(r.distancia_km,0)} km`, referencia:`máx. ${fmtNum(MAX_KM_MENSUAL,0)} km/mes`,
+    regla:`Regla existente: más de ${fmtNum(MAX_KM_MENSUAL,0)} km en un mes. El registro no se usa en los cálculos y sigue sin cambios en Supabase.`,
+  })));
+  if(d.validos.length){
+    const faltan = [];
+    if(d.km===null) faltan.push('km');
+    if(d.litros===null) faltan.push('litros');
+    if(d.hm===null) faltan.push('horas motor');
+    if(d.hr===null) faltan.push('horas ralentí');
+    if(faltan.length) S.push(audSenal('calidad', 1, `Datos faltantes: ${faltan.join(', ')}`, {
+      indicador:faltan.join(', '), valor:'sin dato', regla:'Campo vacío en el registro del período.',
+    }));
+  }
+  // Se revisa registro por registro (en un duplicado, uno solo puede ser inconsistente)
+  d.validos.forEach(reg => {
+    const hm = audNum(reg.horas_motor), hr = audNum(reg.horas_ralenti);
+    if(hm!==null && hr!==null && hr > hm) S.push(audSenal('calidad', 2, 'Inconsistencia: horas de ralentí mayores que horas motor', {
+      indicador:'Hs ralentí / Hs motor', valor:`${fmtNum(hr,1)} / ${fmtNum(hm,1)}`, regla:'Las horas de ralentí no pueden superar a las horas motor.',
+    }));
+  });
+  if(d.km===0 && d.litros>0) S.push(audSenal('calidad', 2, 'Inconsistencia: litros cargados sin km recorridos', {
+    indicador:'Km / Litros', valor:`0 km / ${fmtNum(d.litros,1)} L`, regla:'Litros mayores a 0 con 0 km en el período.',
+  }));
+  if(d.km>0 && d.litros===0) S.push(audSenal('calidad', 1, 'Km recorridos sin litros registrados', {
+    indicador:'Km / Litros', valor:`${fmtNum(d.km,0)} km / 0 L`, regla:'Km mayores a 0 con 0 litros en el período.',
+  }));
+  if(d.km>0 && d.hm===0) S.push(audSenal('calidad', 2, 'Inconsistencia: km recorridos con 0 horas motor', {
+    indicador:'Km / Hs motor', valor:`${fmtNum(d.km,0)} km / 0 h`, regla:'Hay km registrados pero ninguna hora de motor.',
+  }));
+  if(d.km===0 && d.hm>0) S.push(audSenal('calidad', 1, 'Horas motor sin km recorridos', {
+    indicador:'Km / Hs motor', valor:`0 km / ${fmtNum(d.hm,1)} h`, regla:'Motor encendido sin desplazamiento registrado en el período.',
+  }));
+  if(d.kmHora!==null && d.kmHora > cfg.velocidadMaxPlausible) S.push(audSenal('calidad', 2, 'Relación km / horas motor matemáticamente inconsistente', {
+    indicador:'Km / hora motor', valor:fmtNum(d.kmHora,1), referencia:`máx. ${cfg.velocidadMaxPlausible}`,
+    regla:`El promedio de km por hora de motor supera la velocidad máxima plausible (${cfg.velocidadMaxPlausible} km/h).`,
+  }));
+  if(d.vel!==null && d.vel > cfg.velocidadMaxPlausible) S.push(audSenal('calidad', 2, 'Velocidad máxima fuera de rango plausible (posible error de GPS)', {
+    indicador:'Velocidad máx.', valor:`${fmtNum(d.vel,0)} km/h`, referencia:`máx. ${cfg.velocidadMaxPlausible} km/h`,
+    regla:`Valor por encima de ${cfg.velocidadMaxPlausible} km/h. Se excluye de la referencia histórica de velocidad.`,
+  }));
+  if(d.vel===0 && d.km>0) S.push(audSenal('calidad', 1, 'Velocidad máxima 0 con km recorridos', {
+    indicador:'Velocidad máx.', valor:'0 km/h', regla:'Hay km registrados pero la velocidad máxima es 0.',
+  }));
+
+  return { senales:S, ref, desv };
+}
+
+// Nivel final: el máximo de las señales, escalado a "Revisión prioritaria"
+// cuando hay señales de nivel Revisar (o más) en dos o más categorías distintas.
+function audNivelFinal(senales){
+  let nivel = senales.reduce((m,s)=>Math.max(m,s.nivel), 0);
+  if(!nivel) return { nivel, motivo:'No se detectan señales relevantes.' };
+  const motivos = [];
+  const pers = senales.find(s=>s.cat==='persistencia');
+  if(pers) motivos.push(`señales de rendimiento en ${pers.valor} períodos consecutivos`);
+  const catsRevisar = new Set(senales.filter(s=>s.nivel>=2 && s.cat!=='persistencia').map(s=>s.cat));
+  if(catsRevisar.size >= 2){
+    nivel = 3;
+    motivos.push(`señales de nivel Revisar en ${catsRevisar.size} aspectos distintos (${[...catsRevisar].map(c=>AUD_CATEGORIAS[c]).join(', ')})`);
+  }
+  const motivo = motivos.length
+    ? 'Motivo: ' + motivos.join('; ') + '.'
+    : 'Nivel más alto entre las señales detectadas.';
+  return { nivel, motivo };
+}
+
+/* ---------- 3) Evaluación completa por dispositivo ---------- */
+// Recorre cada dispositivo en orden cronológico. Cada período se evalúa
+// contra los anteriores; la persistencia usa las evaluaciones previas.
+function audEvaluarTodo(reportes){
+  const porDisp = new Map();
+  reportes.forEach(r=>{
+    const disp = r.dispositivo_original || '(sin dispositivo)';
+    if(!porDisp.has(disp)) porDisp.set(disp, new Map());
+    const pm = porDisp.get(disp);
+    if(!pm.has(r.periodo)) pm.set(r.periodo, []);
+    pm.get(r.periodo).push(r);
+  });
+  const evaluaciones = [];
+  const historialPorDisp = new Map();
+  porDisp.forEach((pm, disp)=>{
+    const periodos = [...pm.keys()].filter(Boolean).sort();
+    const datos = periodos.map(p => ({ periodo:p, ...audConstruirPeriodos(pm.get(p)) }));
+    const porPeriodo = new Map();
+    const lista = [];
+    datos.forEach((d, i)=>{
+      const previos = datos.slice(0, i);                    // solo períodos anteriores
+      const anterior = datos.find(x=>x.periodo===periodoAnterior(d.periodo)) || null;
+      const { senales, ref, desv } = audEvaluarPeriodo(d, previos, anterior);
+      // Persistencia: meses consecutivos (terminando en este) con señales de rendimiento
+      const nivelRend = senales.filter(s=>AUD_CAT_RENDIMIENTO.includes(s.cat)).reduce((m,s)=>Math.max(m,s.nivel),0);
+      let racha = nivelRend ? 1 : 0;
+      if(racha){
+        let p = periodoAnterior(d.periodo);
+        while(porPeriodo.has(p) && porPeriodo.get(p).nivelRend > 0){ racha++; p = periodoAnterior(p); }
+      }
+      if(racha >= 2) senales.push(audSenal('persistencia', racha>=3 ? 3 : 2,
+        `Anomalía persistente: ${racha} períodos consecutivos con señales de rendimiento`, {
+          indicador:'Períodos consecutivos', valor:String(racha),
+          regla:'2 períodos consecutivos con señales de consumo, ralentí, km/hora motor o velocidad → Revisar; 3 o más → Revisión prioritaria. Indica una posible tendencia, no una falla confirmada.',
+        }));
+      const { nivel, motivo } = audNivelFinal(senales);
+      const ev = {
+        dispositivo: disp, periodo: d.periodo, datos: d, ref, desv, anterior,
+        senales: senales.sort((a,b)=>b.nivel-a.nivel), nivel, motivo, nivelRend, racha,
+        periodosPrevios: previos.length,
+      };
+      porPeriodo.set(d.periodo, ev);
+      lista.push(ev);
+      evaluaciones.push(ev);
+    });
+    historialPorDisp.set(disp, lista);
+  });
+  return { evaluaciones, historialPorDisp };
+}
+
+/* ---------- 4) Pantalla ---------- */
+function audBadge(nivel, corto){
+  const n = AUD_NIVELES[nivel];
+  return `<span class="aud-badge aud-${n.key}"><span class="aud-dot"></span>${corto && nivel===3 ? 'Prioritaria' : n.label}</span>`;
+}
+function audDot(nivel, title){
+  return `<span class="aud-dot aud-dot-${AUD_NIVELES[nivel].key}" title="${esc(title||AUD_NIVELES[nivel].label)}"></span>`;
+}
+function audColorDesvio(nivel){ return nivel>=3 ? 'aud-txt-3' : nivel===2 ? 'aud-txt-2' : nivel===1 ? 'aud-txt-1' : ''; }
+
+async function renderAuditoria(content){
+  content.innerHTML = `<div class="empty"><span class="spin"></span> Analizando historial…</div>`;
+  const opts = await fetchFilterOptions();
+  state._optsCache = opts;
+  const { reportes } = await cargarDatosBase();          // historial completo (no depende del filtro de período)
+  const { evaluaciones, historialPorDisp } = audEvaluarTodo(reportes);
+  state._audHist = historialPorDisp;
+  if(!state.audit) state.audit = { tipo:'', estado:'senales' };
+
+  // Períodos a mostrar: los elegidos en el filtro; si no hay, el último disponible.
+  const todosPeriodos = [...new Set(evaluaciones.map(e=>e.periodo))].sort();
+  const ultimo = todosPeriodos[todosPeriodos.length-1];
+  const periodosSel = (state.filters.periodo && state.filters.periodo.length) ? new Set(state.filters.periodo) : new Set(ultimo ? [ultimo] : []);
+  const dispSel = (state.filters.vehiculo && state.filters.vehiculo.length) ? new Set(state.filters.vehiculo) : null;
+
+  let base = evaluaciones.filter(e => periodosSel.has(e.periodo) && (!dispSel || dispSel.has(e.dispositivo)));
+  if(state.audit.tipo) base = base.filter(e => e.senales.some(s=>s.cat===state.audit.tipo));
+  const conteo = [0,0,0,0]; base.forEach(e=>conteo[e.nivel]++);
+  const est = state.audit.estado;
+  const visibles = base.filter(e =>
+    est==='todos' ? true : est==='senales' ? e.nivel>0 : e.nivel === AUD_NIVELES.find(n=>n.key===est).n
+  ).sort((a,b)=> b.nivel-a.nivel || a.dispositivo.localeCompare(b.dispositivo) || b.periodo.localeCompare(a.periodo));
+
+  const periodoTxt = (state.filters.periodo && state.filters.periodo.length)
+    ? `${periodosSel.size} período(s) seleccionado(s)`
+    : (ultimo ? `Último período disponible: ${periodoLabelCorta(ultimo)}. Elegí otros en el filtro de período.` : 'Sin datos');
+
+  const selectPill = (id, ic, valor, opciones) => `
+    <div class="filter-pill${valor && !(id==='f-aud-estado' && valor==='senales') ? ' active-filter' : ''}">${icon(ic)}
+      <select id="${id}">${opciones.map(o=>`<option value="${o.v}"${o.v===valor?' selected':''}>${esc(o.l)}</option>`).join('')}</select>
+    </div>`;
+
+  const tarjeta = (nivel) => {
+    const n = AUD_NIVELES[nivel];
+    const activa = est===n.key;
+    return `<button class="aud-card aud-card-${n.key}${activa?' activa':''}" data-estado="${n.key}">
+      <div class="aud-card-top">${audDot(nivel)}<span>${n.label}</span></div>
+      <div class="aud-card-n">${fmtNum(conteo[nivel],0)}</div>
+      <div class="aud-card-sub">dispositivo(s) · período</div>
+    </button>`;
+  };
+
+  content.innerHTML = `
+    <div class="aud-head">
+      <div><h2>Auditoría de consumos</h2><p>Detecta desvíos e inconsistencias para revisión, comparando cada dispositivo con su propio historial.</p></div>
+    </div>
+    <div class="filters">
+      ${filtersBar(opts, state.filters).replace(/^\s*<div class="filters">|<\/div>\s*$/g,'')}
+      ${selectPill('f-aud-tipo','alert', state.audit.tipo, [{v:'',l:'Todos los tipos de alerta'}, ...Object.entries(AUD_CATEGORIAS).map(([v,l])=>({v,l}))])}
+      ${selectPill('f-aud-estado','gauge', state.audit.estado, [
+        {v:'senales',l:'Con señales (sin Normal)'},{v:'todos',l:'Todos los estados'},
+        {v:'prioritaria',l:'Revisión prioritaria'},{v:'revisar',l:'Revisar'},{v:'observar',l:'Observar'},{v:'normal',l:'Normal'}])}
+    </div>
+    <div class="aud-cards">${[3,2,1,0].map(tarjeta).join('')}</div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left"><span class="ic ic-blue">${icon('alert')}</span><div><h2>Dispositivos a revisar</h2><div class="sub">${esc(periodoTxt)}</div></div></div>
+        <div class="panel-head-actions">
+          <div class="search-box">${icon('search')}<input id="aud-search" placeholder="Buscar dispositivo…"></div>
+          <button class="btn btn-secondary" id="aud-export">${icon('download')} Exportar señales</button>
+        </div>
+      </div>
+      <div class="pivot-scroll" id="aud-tabla">${audTablaHtml(visibles)}</div>
+    </div>
+    ${audCriteriosHtml()}
+  `;
+
+  bindFiltersBar(()=>renderView());
+  document.getElementById('f-aud-tipo').onchange = e => { state.audit.tipo = e.target.value; renderView(); };
+  document.getElementById('f-aud-estado').onchange = e => { state.audit.estado = e.target.value; renderView(); };
+  content.querySelectorAll('.aud-card').forEach(b => b.onclick = () => {
+    state.audit.estado = state.audit.estado===b.dataset.estado ? 'senales' : b.dataset.estado; renderView();
+  });
+  const bindFilas = (lista) => {
+    ajustarAlturaPivot('aud-tabla');
+    content.querySelectorAll('#aud-tabla tr[data-i]').forEach(tr => tr.onclick = () => audAbrirDetalle(lista[+tr.dataset.i]));
+  };
+  bindFilas(visibles);
+  window.onresize = () => ajustarAlturaPivot('aud-tabla');
+  document.getElementById('aud-search').oninput = e => {
+    const q = e.target.value.toLowerCase();
+    const lista = q ? visibles.filter(v=>v.dispositivo.toLowerCase().includes(q)) : visibles;
+    const cont = document.getElementById('aud-tabla');
+    cont.innerHTML = audTablaHtml(lista); cont.scrollTop = 0;
+    bindFilas(lista);
+  };
+  document.getElementById('aud-export').onclick = () => audExportarCSV(visibles);
+}
+
+function audTablaHtml(lista){
+  if(!lista.length) return `<div class="empty">No hay dispositivos para los filtros elegidos.</div>`;
+  return `<table class="pivot-table aud-table">
+    <thead><tr>
+      <th class="sticky-col">Dispositivo</th><th>Período</th>
+      <th class="num">Km/L</th><th class="num">Histórico</th><th class="num">Desvío</th>
+      <th class="num">L/100</th><th class="num">Ralentí</th><th class="num">Velocidad</th>
+      <th>Estado</th><th>Señales</th><th></th>
+    </tr></thead>
+    <tbody>${lista.map((e,i)=>{
+      const d = e.datos;
+      const sKml = e.senales.find(s=>s.cat==='consumo' && s.indicador==='Km/L' && s.titulo.startsWith('Consumo'));
+      const sRal = e.senales.find(s=>s.cat==='ralenti');
+      const sVel = e.senales.find(s=>s.cat==='velocidad');
+      const histKml = e.ref.kml.suficiente ? fmtNum(e.ref.kml.mediana,2) : `<span class="muted" title="Se necesitan ${AUDIT_CFG.minHistorico} períodos previos con dato">Sin historial</span>`;
+      const principal = e.senales[0];
+      return `<tr class="row-click" data-i="${i}">
+        <td class="sticky-col device-name">${esc(e.dispositivo)}</td>
+        <td>${esc(periodoLabelCorta(e.periodo))}</td>
+        <td class="num">${fmtNum(d.kml,2)}</td>
+        <td class="num">${histKml}</td>
+        <td class="num ${audColorDesvio(sKml?sKml.nivel:0)}">${fmtPct(e.desv.kml)}</td>
+        <td class="num">${fmtNum(d.l100,2)}</td>
+        <td class="num ${audColorDesvio(sRal?sRal.nivel:0)}">${d.ralentiPct===null?'—':fmtNum(d.ralentiPct,1)+' %'}${e.desv.ralentiPP!==null?`<span class="aud-sub">${fmtPP(e.desv.ralentiPP)}</span>`:''}</td>
+        <td class="num ${audColorDesvio(sVel?sVel.nivel:0)}">${d.vel===null?'—':fmtNum(d.vel,0)+' km/h'}${sVel?'<span class="aud-sub">atípica</span>':''}</td>
+        <td>${audBadge(e.nivel, true)}</td>
+        <td class="aud-senales-cell">${principal ? `<span class="aud-n">${e.senales.length}</span>${esc(principal.titulo)}` : '<span class="muted">—</span>'}</td>
+        <td class="row-chevron">${icon('chevronRight')}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function audCriteriosHtml(){
+  const c = AUDIT_CFG;
+  return `<details class="panel aud-criterios">
+    <summary><span class="ic ic-blue">${icon('gauge')}</span><div><h2>Criterios de la auditoría</h2><div class="sub">Reglas y umbrales usados para generar cada señal</div></div><span class="aud-toggle">Ver ▾</span></summary>
+    <div class="aud-criterios-body">
+      <p><strong>Unidad de análisis:</strong> dispositivo + período. El dispositivo es el texto exacto de <code>dispositivo_original</code>, sin separar ni normalizar. Cada dispositivo se compara únicamente con su propio historial; nunca con otros dispositivos.</p>
+      <p><strong>Referencia histórica:</strong> mediana de hasta ${c.ventanaHistorico} períodos anteriores del mismo dispositivo (el período evaluado nunca forma parte de su propia referencia). Se necesitan al menos ${c.minHistorico} períodos previos con dato; si no, se indica "Sin historial" y no se genera señal histórica. También se muestra el promedio como dato de contexto.</p>
+      <table class="aud-crit-table"><thead><tr><th>Aspecto</th><th>Observar</th><th>Revisar</th><th>Revisión prioritaria</th></tr></thead><tbody>
+        <tr><td>Km/L vs. histórico</td><td>≤ ${c.kml.observar} %</td><td>≤ ${c.kml.revisar} %</td><td>≤ ${c.kml.prioritaria} %</td></tr>
+        <tr><td>L/100 km vs. histórico</td><td>≥ +${c.l100.observar} %</td><td>≥ +${c.l100.revisar} %</td><td>≥ +${c.l100.prioritaria} %</td></tr>
+        <tr><td>Km/L vs. mes anterior</td><td>≤ ${c.kmlMensual.observar} %</td><td>≤ ${c.kmlMensual.revisar} %</td><td>—</td></tr>
+        <tr><td>Km/L muy superior al histórico (dato atípico)</td><td>≥ +${c.kmlAlto} %</td><td>—</td><td>—</td></tr>
+        <tr><td>% ralentí vs. histórico</td><td>≥ +${c.ralentiPP.observar} pp</td><td>≥ +${c.ralentiPP.revisar} pp</td><td>≥ +${c.ralentiPP.prioritaria} pp</td></tr>
+        <tr><td>Km por hora motor vs. histórico</td><td>± ${c.kmHora.observar} %</td><td>± ${c.kmHora.revisar} %</td><td>—</td></tr>
+        <tr><td>Velocidad máxima vs. histórico</td><td>≥ +${c.velocidad.observar} %</td><td>≥ +${c.velocidad.revisar} %</td><td>—</td></tr>
+        <tr><td>Persistencia de señales de rendimiento</td><td>—</td><td>2 meses consecutivos</td><td>3 o más meses consecutivos</td></tr>
+        <tr><td>Varias señales simultáneas</td><td>—</td><td>—</td><td>Nivel Revisar en 2 o más aspectos</td></tr>
+      </tbody></table>
+      <p><strong>Calidad de datos:</strong> registros duplicados, registros con más de ${fmtNum(MAX_KM_MENSUAL,0)} km/mes (regla existente: se excluyen de los cálculos y se muestran con su valor original) y horas de ralentí mayores que horas motor se marcan como Revisar. Datos faltantes, km sin litros, horas motor sin km y velocidad 0 con km se marcan como Observar. Velocidades por encima de ${c.velocidadMaxPlausible} km/h se consideran posible error de GPS.</p>
+      <p class="muted">Los estados son niveles de revisión, no diagnósticos. La auditoría no modifica ningún dato en Supabase. Los umbrales se ajustan en <code>AUDIT_CFG</code> dentro del código.</p>
+    </div>
+  </details>`;
+}
+
+/* ---------- 5) Detalle del dispositivo ---------- */
+function audAbrirDetalle(ev){
+  const hist = state._audHist.get(ev.dispositivo) || [];
+  const d = ev.datos, r = ev.ref, dv = ev.desv;
+  const sinHist = x => `<span class="muted">Sin historial suficiente (${x.n} de ${AUDIT_CFG.minHistorico} períodos)</span>`;
+  const nivelCat = (cat, filtro) => ev.senales.filter(s=>s.cat===cat && (!filtro || filtro(s))).reduce((m,s)=>Math.max(m,s.nivel),0);
+  const bloque = (titulo, actual, refObj, dec, unidad, desvioTxt, nivel, extra='') => `
+    <div class="aud-metric">
+      <div class="aud-metric-head"><span>${titulo}</span>${nivel?audBadge(nivel,true):''}</div>
+      <div class="aud-metric-grid">
+        <div><div class="l">Actual</div><div class="v">${actual===null?'—':fmtNum(actual,dec)+unidad}</div></div>
+        <div><div class="l">Histórico</div><div class="v">${refObj.suficiente ? fmtNum(refObj.mediana,dec)+unidad : '—'}</div></div>
+        <div><div class="l">Desvío</div><div class="v ${audColorDesvio(nivel)}">${desvioTxt}</div></div>
+      </div>
+      <div class="aud-metric-foot">${refObj.suficiente ? `Mediana de ${refObj.n} períodos previos · promedio ${fmtNum(refObj.promedio,dec)}${unidad}` : sinHist(refObj)}${extra}</div>
+    </div>`;
+  const varMes = ev.anterior
+    ? (dv.kmlMensual!==null ? `<br>Vs. ${esc(periodoLabelCorta(ev.anterior.periodo))} (${fmtNum(ev.anterior.kml,2)}): <strong>${fmtPct(dv.kmlMensual)}</strong>` : '<br>Período anterior sin Km/L calculable')
+    : '<br>Sin período anterior comparable';
+  const velExtra = (d.vel!==null && d.vel>AUDIT_CFG.velocidadMaxPlausible) ? '<br>Fuera de rango plausible: posible error de GPS' : '';
+
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal aud-modal" role="dialog" aria-modal="true">
+    <div class="aud-modal-head">
+      <div>
+        <div class="aud-modal-kicker">Detalle de auditoría · ${esc(periodoLabelCorta(ev.periodo))}</div>
+        <h3>${esc(ev.dispositivo)}</h3>
+        <div class="aud-modal-estado">${audBadge(ev.nivel)}<span class="muted">${esc(ev.motivo)}</span></div>
+      </div>
+      <button class="icon-btn" id="aud-close" title="Cerrar">${icon('close')}</button>
+    </div>
+    <div class="aud-modal-body">
+      <div class="aud-metrics">
+        ${bloque('Consumo · Km/L', d.kml, r.kml, 2, '', fmtPct(dv.kml), nivelCat('consumo', s=>s.indicador==='Km/L'), varMes)}
+        ${bloque('Litros cada 100 km', d.l100, r.l100, 2, '', fmtPct(dv.l100), nivelCat('consumo', s=>s.indicador==='L/100 km'))}
+        ${bloque('Ralentí', d.ralentiPct, r.ralentiPct, 1, ' %', fmtPP(dv.ralentiPP), nivelCat('ralenti'))}
+        ${bloque('Km por hora motor', d.kmHora, r.kmHora, 1, '', fmtPct(dv.kmHora), nivelCat('kmhora'))}
+        ${bloque('Velocidad máxima', d.vel, r.vel, 0, ' km/h', fmtPct(dv.vel), nivelCat('velocidad'), velExtra)}
+        <div class="aud-metric">
+          <div class="aud-metric-head"><span>Dato reportado vs. utilizado</span></div>
+          <div class="aud-metric-grid">
+            <div><div class="l">Km reportados</div><div class="v">${fmtNum(d.kmReportado,0)}</div></div>
+            <div><div class="l">Km utilizados</div><div class="v">${fmtNum(d.km,0)}</div></div>
+            <div><div class="l">Registros</div><div class="v">${d.registros.length}${d.excluidos.length?` <span class="aud-txt-2">(${d.excluidos.length} excl.)</span>`:''}</div></div>
+          </div>
+          <div class="aud-metric-foot">${d.excluidos.length ? `Se excluyó por superar ${fmtNum(MAX_KM_MENSUAL,0)} km/mes. El dato original no se modifica en Supabase.` : 'Todos los registros del período se usan en los indicadores.'}</div>
+        </div>
+      </div>
+
+      <h4>Señales detectadas</h4>
+      ${ev.senales.length ? `<div class="aud-scroll-x"><table class="aud-senales">
+        <thead><tr><th>Nivel</th><th>Señal</th><th>Indicador</th><th class="num">Valor</th><th>Referencia</th><th class="num">Desvío</th><th>Regla aplicada</th></tr></thead>
+        <tbody>${ev.senales.map(s=>`<tr>
+          <td>${audBadge(s.nivel,true)}</td><td class="strong">${esc(s.titulo)}</td><td>${esc(s.indicador)}</td>
+          <td class="num">${esc(s.valor||'—')}</td><td>${esc(s.referencia||'—')}</td><td class="num">${esc(s.desvio||'—')}</td>
+          <td class="aud-regla">${esc(s.regla)}</td></tr>`).join('')}</tbody>
+      </table></div>` : `<p class="muted">No se detectan señales relevantes en este período.</p>`}
+
+      <h4>Historial del dispositivo</h4>
+      <div class="aud-strip">${hist.map(h=>`<div class="aud-strip-item${h.periodo===ev.periodo?' actual':''}">${audDot(h.nivel, AUD_NIVELES[h.nivel].label + (h.senales.length?` · ${h.senales.length} señal(es)`:''))}<span>${esc(periodoLabelCompacta(h.periodo))}</span></div>`).join('')}</div>
+      <div class="aud-scroll-x aud-hist-wrap"><table class="aud-hist">
+        <thead><tr><th>Período</th><th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th><th class="num">L/100</th><th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">% ralentí</th><th class="num">Vel. máx</th><th>Estado</th></tr></thead>
+        <tbody>${[...hist].reverse().map(h=>{ const x=h.datos; return `<tr class="${h.periodo===ev.periodo?'actual':''}">
+          <td>${esc(periodoLabelCorta(h.periodo))}${x.excluidos.length?` <span class="aud-txt-2" title="Registro excluido por km excesivos: ${fmtNum(x.kmReportado,0)} km reportados">*</span>`:''}</td>
+          <td class="num">${fmtNum(x.km,0)}</td><td class="num">${fmtNum(x.litros,1)}</td><td class="num">${fmtNum(x.kml,2)}</td><td class="num">${fmtNum(x.l100,2)}</td>
+          <td class="num">${fmtNum(x.hm,1)}</td><td class="num">${fmtNum(x.hr,1)}</td><td class="num">${x.ralentiPct===null?'—':fmtNum(x.ralentiPct,1)+' %'}</td>
+          <td class="num">${fmtNum(x.vel,0)}</td><td>${audBadge(h.nivel,true)}</td></tr>`; }).join('')}</tbody>
+      </table></div>
+      ${hist.some(h=>h.datos.excluidos.length) ? `<p class="muted aud-nota">* Período con registro excluido por superar ${fmtNum(MAX_KM_MENSUAL,0)} km/mes: los km mostrados son los utilizados en los indicadores.</p>` : ''}
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+  const cerrar = () => { bg.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if(e.key==='Escape') cerrar(); };
+  document.addEventListener('keydown', onKey);
+  bg.onclick = e => { if(e.target===bg) cerrar(); };
+  bg.querySelector('#aud-close').onclick = cerrar;
+}
+
+function audExportarCSV(lista){
+  const cols = ['Dispositivo','Período','Estado','Motivo del estado','Señal','Aspecto','Indicador','Valor','Referencia','Desvío','Regla'];
+  const lines = [cols.join(';')];
+  const limpio = v => String(v ?? '').replace(/[;\n]/g, ',');
+  lista.forEach(e=>{
+    const base = [e.dispositivo, periodoLabelCorta(e.periodo), AUD_NIVELES[e.nivel].label, e.motivo];
+    if(!e.senales.length) lines.push([...base,'Sin señales','','','','','',''].map(limpio).join(';'));
+    e.senales.forEach(s => lines.push([...base, s.titulo, AUD_CATEGORIAS[s.cat], s.indicador, s.valor, s.referencia, s.desvio, s.regla].map(limpio).join(';')));
+  });
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type:'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'auditoria_consumos.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
 /* ---------- INDICADORES (Km/litro y Litros/100 km) ---------- */
 async function renderIndicadores(content){
   content.innerHTML = `<div class="empty"><span class="spin"></span> Cargando…</div>`;
