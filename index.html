@@ -502,6 +502,16 @@
     .config-box{padding:26px;}
   }
   /* ---------- Reporte YPF (histórico de cargas) ---------- */
+  .btn-ypf{
+    display:inline-flex;align-items:center;gap:9px;height:36px;padding:0 14px 0 12px;border:none;border-radius:var(--radius-sm);
+    background:#005CB9;color:#fff;font-weight:600;font-size:12.5px;white-space:nowrap;
+    box-shadow:0 1px 2px rgba(0,60,120,.18);transition:background .12s ease;
+  }
+  .btn-ypf:hover{background:#004E9E;}
+  .btn-ypf:focus-visible{outline:2px solid #003f80;outline-offset:2px;}
+  .btn-ypf-logo{height:17px;width:auto;display:block;}
+  .btn-ypf-sep{width:1px;height:18px;background:rgba(255,255,255,.35);}
+  .btn-ypf svg{width:14px;height:14px;flex:none;}
   .ypf-date{gap:0;cursor:pointer;}
   .ypf-date-l{font-size:12px;color:var(--slate-400);font-weight:600;margin-right:8px;}
   .ypf-date input{border:none;background:transparent;padding:0;color:var(--slate-800);font-weight:600;font-size:12.5px;font-family:inherit;}
@@ -1108,13 +1118,14 @@ function render(){
   const tabActiva = document.querySelector('.tab-item.active');
   if(tabActiva){ const bar = tabActiva.parentElement; bar.scrollLeft = Math.max(0, tabActiva.offsetLeft - (bar.clientWidth - tabActiva.offsetWidth) / 2); }
   document.getElementById('topbar-actions').innerHTML = `
-    <button class="btn btn-primary" id="btn-cargar-planilla">${icon('upload')} ${state.view==='ypf' ? 'Cargar planilla YPF' : 'Cargar planilla'}</button>
+    ${state.view==='ypf' ? '' : `<button class="btn btn-primary" id="btn-cargar-planilla">${icon('upload')} Cargar planilla</button>`}
     <button class="icon-btn" id="btn-refresh" title="Actualizar datos desde Supabase">${icon('refresh')}</button>
     <button class="icon-btn" id="btn-dots" title="Más opciones">${icon('dots')}</button>
     <button class="icon-btn" id="btn-install-icon" style="display:none" title="Instalar app">${icon('install')}</button>
   `;
   bindInstallButton();
-  document.getElementById('btn-cargar-planilla').onclick = () => state.view==='ypf' ? abrirModalImportarYpf() : abrirModalImportar();
+  const btnPlanilla = document.getElementById('btn-cargar-planilla');
+  if(btnPlanilla) btnPlanilla.onclick = () => abrirModalImportar();
   document.getElementById('btn-refresh').onclick = () => { invalidarCacheDatos(); invalidarCacheYpf(); renderView(); };
   document.getElementById('btn-dots').onclick = () => {
     const proceed = confirm('¿Cambiar la configuración de conexión a Supabase?');
@@ -3134,7 +3145,16 @@ async function ejecutarImportacion(resultEl){
 // Supabase (la app usa la anon key). Cambiar a true solo si hace falta.
 const YPF_GUARDAR_DNI = false;
 const YPF_LOTE_UPSERT = 500;
-const YPF_FILAS_POR_TANDA = 500;   // filas que se dibujan de a una tanda ("Mostrar más")
+const YPF_FILAS_POR_TANDA = 500;
+// Logo YPF (imagen provista por el usuario, recortada), usado en el botón de carga.
+const YPF_LOGO_SRC = 'data:image/png;base64,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';
+function ypfBotonCargarHtml(id){
+  return `<button type="button" class="btn-ypf" id="${id}" title="Cargar planilla de YPF en Ruta">
+    <img src="${YPF_LOGO_SRC}" alt="YPF" class="btn-ypf-logo">
+    <span class="btn-ypf-sep" aria-hidden="true"></span>
+    ${icon('upload')}<span>Cargar planilla</span>
+  </button>`;
+}   // filas que se dibujan de a una tanda ("Mostrar más")
 
 // Columnas de la tabla, en este orden.
 const YPF_COLUMNAS = [
@@ -3237,7 +3257,7 @@ async function renderReporteYpf(content){
   if(!ultima){
     content.innerHTML = `<div class="panel"><div class="empty">
       Todavía no hay cargas YPF en Supabase.<br><br>
-      <button class="btn btn-primary" id="ypf-empty-cargar">${icon('upload')} Cargar planilla YPF</button>
+      <div style="display:flex;justify-content:center">${ypfBotonCargarHtml('ypf-empty-cargar')}</div>
     </div></div>`;
     document.getElementById('ypf-empty-cargar').onclick = () => abrirModalImportarYpf();
     return;
@@ -3252,6 +3272,7 @@ async function renderReporteYpf(content){
       <label class="filter-pill ypf-date">${icon('calendar')}<span class="ypf-date-l">Desde</span><input type="date" id="ypf-desde" value="${esc(q.desde)}" max="${esc(ultima)}"></label>
       <label class="filter-pill ypf-date">${icon('calendar')}<span class="ypf-date-l">Hasta</span><input type="date" id="ypf-hasta" value="${esc(q.hasta)}"></label>
       <div id="ypf-tarjeta-slot"></div>
+      ${ypfBotonCargarHtml('ypf-cargar')}
     </div>
     <div class="panel">
       <div class="panel-head">
@@ -3272,6 +3293,7 @@ async function renderReporteYpf(content){
     q.desde = d; q.hasta = h; q.tarjetas = [];
     renderView();
   };
+  document.getElementById('ypf-cargar').onclick = () => abrirModalImportarYpf();
   document.getElementById('ypf-desde').onchange = aplicarFechas;
   document.getElementById('ypf-hasta').onchange = aplicarFechas;
 
