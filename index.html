@@ -219,6 +219,41 @@
   .ind-grid > .panel{margin-bottom:0;min-width:0;}
   .ind-chart{height:250px;}
 
+  /* Tarjetas: más aire, título con más peso y subtítulo discreto */
+  .ind-grid .panel-head{padding:18px 22px 14px 22px;align-items:flex-start;}
+  .ind-grid .panel-head-left{align-items:flex-start;gap:12px;}
+  .ind-grid .panel-head-left .ic{width:32px;height:32px;border-radius:9px;margin-top:1px;}
+  .ind-grid .panel-head-left .ic.ic-amber{background:#fdf5e3;color:var(--amber-dark);}
+  .ind-grid .panel-head h2{font-size:15px;font-weight:700;color:var(--navy-950);letter-spacing:-.1px;line-height:1.3;}
+  .ind-grid .panel-head .sub{font-size:11.5px;color:var(--slate-400);margin-top:2px;font-weight:500;}
+  .ind-grid .panel-head-actions .btn{padding:7px 14px;font-size:12.5px;}
+  .ind-grid .panel-body{padding:4px 22px 18px 22px;}
+
+  /* Gráficos: hover discreto sobre la barra (el valor exacto sigue en el tooltip) */
+  .bar-chart rect.bar{transition:opacity .12s ease;}
+  .bar-chart rect.bar:hover{opacity:.78;}
+
+  /* Tablas: meses compactos pero legibles, dispositivo más ancho y fijo */
+  .ind-grid .pivot-scroll{margin:0 22px 20px 22px;border:1px solid var(--slate-100);border-radius:var(--radius-sm);}
+  .ind-grid table.pivot-table{font-size:12.5px;}
+  .ind-grid table.pivot-table th{padding:10px 12px;font-size:10px;letter-spacing:.05em;color:var(--slate-600);background:#fff;}
+  .ind-grid table.pivot-table td{padding:8px 12px;border-bottom:1px solid var(--slate-100);}
+  .ind-grid table.pivot-table td.num, .ind-grid table.pivot-table th.num{min-width:62px;}
+  .ind-grid table.pivot-table th.sticky-col, .ind-grid table.pivot-table td.sticky-col{
+    min-width:200px;box-shadow:1px 0 0 var(--slate-200);
+  }
+  .ind-grid .pivot-scroll table thead th{box-shadow:inset 0 -1px 0 var(--slate-200);}
+  .ind-grid .pivot-scroll table thead th.sticky-col{box-shadow:inset 0 -1px 0 var(--slate-200), 1px 0 0 var(--slate-200);}
+  .ind-grid table.pivot-table tbody tr:not(.pivot-total-row):hover td{background:#f1f8f7;}
+  /* Fila Total: fondo gris suave, semibold y separada de los vehículos */
+  .ind-grid table.pivot-table tr.pivot-total-row td{
+    font-weight:600;color:var(--navy-950);background:var(--slate-50);
+    border-bottom:none;box-shadow:inset 0 -1px 0 var(--slate-200);
+  }
+  .ind-grid table.pivot-table tr.pivot-total-row td.sticky-col{
+    background:var(--slate-50);box-shadow:inset 0 -1px 0 var(--slate-200), 1px 0 0 var(--slate-200);
+  }
+
   /* ---------- Alerta compacta de km improbables ---------- */
   .km-alert{background:#fff;border:1px solid #f0cec7;border-radius:var(--radius-sm);margin-bottom:14px;font-size:12.5px;}
   .km-alert summary{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;list-style:none;}
@@ -1167,6 +1202,12 @@ function ajustarAlturaPivot(containerId){
 }
 
 const MESES_ABBR = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+// Formato compacto para el eje de los gráficos: "ENE-25".
+function periodoLabelCompacta(p){
+  if(!p) return '';
+  const [y,m] = p.split('-');
+  return `${MESES_ABBR[parseInt(m,10)-1].toUpperCase()}-${y.slice(-2)}`;
+}
 function periodoLabelCorta(p){
   if(!p) return '';
   const [y,m] = p.split('-');
@@ -1206,14 +1247,14 @@ function buildPivot(rows, opts){
   periodos.forEach(p=>{ totalPorPeriodo[p] = aggregate(rows.filter(r=>r.periodo===p)); });
   return { periodos, devices, totalGeneral: aggregate(rows), totalPorPeriodo };
 }
-function pivotTableHtml(pivot, {decimales=0, searchQuery=''}={}){
+function pivotTableHtml(pivot, {decimales=0, searchQuery='', etiquetaPeriodo=periodoLabelCorta}={}){
   const q = (searchQuery||'').toLowerCase();
   const filtered = q ? pivot.devices.filter(d=>(d.nombre||d.dominio||'').toLowerCase().includes(q)) : pivot.devices;
   return `<table class="pivot-table">
     <thead><tr>
       <th class="sticky-col">Dispositivo</th>
       <th class="num">Total</th>
-      ${pivot.periodos.map(p=>`<th class="num">${esc(periodoLabelCorta(p))}</th>`).join('')}
+      ${pivot.periodos.map(p=>`<th class="num" title="${esc(periodoLabelCorta(p))}">${esc(etiquetaPeriodo(p))}</th>`).join('')}
     </tr></thead>
     <tbody>
       <tr class="pivot-total-row">
@@ -1351,10 +1392,11 @@ async function renderIndicadores(content){
   const orden = new Map(pivotKml.devices.map((d,i)=>[d.nombre,i]));
   pivotL100.devices.sort((a,b)=> (orden.get(a.nombre)??1e9) - (orden.get(b.nombre)??1e9));
 
-  const labels = pivotKml.periodos.map(periodoLabelCorta);
+  const labels = pivotKml.periodos.map(periodoLabelCompacta);
+  const titulos = pivotKml.periodos.map(periodoLabelCorta);
   const hayDatos = pivotKml.devices.length > 0;
   const vacio = `<div class="empty">No hay datos con km y litros para estos filtros todavía.</div>`;
-  const chartOpts = { w:560, h:250, mostrarValores:true };
+  const chartOpts = { w:560, h:250, mostrarValores:true, ejeAdaptativo:true, anchoMaxBarra:34, titulos };
 
   content.innerHTML = `
     ${filtersBar(opts, state.filters)}
@@ -1369,7 +1411,7 @@ async function renderIndicadores(content){
       </div>
       <div class="panel">
         <div class="panel-head">
-          <div class="panel-head-left"><span class="ic">${icon('fuel')}</span><div><h2>Litros cada 100 km</h2><div class="sub">Promedio de la flota por mes</div></div></div>
+          <div class="panel-head-left"><span class="ic ic-amber">${icon('fuel')}</span><div><h2>Litros cada 100 km</h2><div class="sub">Promedio de la flota por mes</div></div></div>
         </div>
         <div class="panel-body"><div class="ind-chart">${hayDatos ? miniBarChart(labels, pivotL100.periodos.map(p=>pivotL100.totalPorPeriodo[p]||0), {...chartOpts, color:'#e6a91b', decTicks:1, decValores:1}) : vacio}</div></div>
       </div>
@@ -1378,14 +1420,14 @@ async function renderIndicadores(content){
           <div class="panel-head-left"><span class="ic">${icon('gauge')}</span><div><h2>Km por litro</h2><div class="sub">Por dispositivo y mes</div></div></div>
           <div class="panel-head-actions"><button class="btn btn-secondary" id="kml-export">${icon('download')} Exportar</button></div>
         </div>
-        <div class="pivot-scroll" id="kml-tabla">${hayDatos ? pivotTableHtml(pivotKml,{decimales:2}) : vacio}</div>
+        <div class="pivot-scroll" id="kml-tabla">${hayDatos ? pivotTableHtml(pivotKml,{decimales:2, etiquetaPeriodo:periodoLabelCompacta}) : vacio}</div>
       </div>
       <div class="panel">
         <div class="panel-head">
-          <div class="panel-head-left"><span class="ic">${icon('fuel')}</span><div><h2>Litros cada 100 km</h2><div class="sub">Por dispositivo y mes</div></div></div>
+          <div class="panel-head-left"><span class="ic ic-amber">${icon('fuel')}</span><div><h2>Litros cada 100 km</h2><div class="sub">Por dispositivo y mes</div></div></div>
           <div class="panel-head-actions"><button class="btn btn-secondary" id="l100-export">${icon('download')} Exportar</button></div>
         </div>
-        <div class="pivot-scroll" id="l100-tabla">${hayDatos ? pivotTableHtml(pivotL100,{decimales:1}) : vacio}</div>
+        <div class="pivot-scroll" id="l100-tabla">${hayDatos ? pivotTableHtml(pivotL100,{decimales:1, etiquetaPeriodo:periodoLabelCompacta}) : vacio}</div>
       </div>
     </div>
   `;
@@ -1412,8 +1454,8 @@ async function renderIndicadores(content){
 
   document.getElementById('ind-search').oninput = (e)=>{
     const q = e.target.value;
-    a.innerHTML = pivotTableHtml(pivotKml,{decimales:2, searchQuery:q});
-    b.innerHTML = pivotTableHtml(pivotL100,{decimales:1, searchQuery:q});
+    a.innerHTML = pivotTableHtml(pivotKml,{decimales:2, searchQuery:q, etiquetaPeriodo:periodoLabelCompacta});
+    b.innerHTML = pivotTableHtml(pivotL100,{decimales:1, searchQuery:q, etiquetaPeriodo:periodoLabelCompacta});
     a.scrollTop = b.scrollTop = 0;
     ajustar();
   };
@@ -1425,33 +1467,76 @@ async function renderIndicadores(content){
 // Chart.js externa haya cargado (evita el "Chart is not defined" si el CDN
 // está bloqueado o tarda), y queda igual de liviano y responsive.
 function miniBarChart(labels, values, opts={}){
-  const { w = 960, h = 260, color = '#20b5a2', decTicks = 0, decValores = 1, mostrarValores = false } = opts;
-  const padL = 48, padR = 12, padT = mostrarValores ? 22 : 12, padB = 34;
+  const { w = 960, h = 260, color = '#20b5a2', decTicks = 0, decValores = 1, mostrarValores = false,
+          // Opciones solo visuales (las usa la hoja Indicadores):
+          titulos = null,          // texto del tooltip de cada barra (por defecto, la etiqueta)
+          ejeAdaptativo = false,   // evita que las etiquetas del eje X se superpongan
+          anchoMaxBarra = Infinity // ancho máximo de cada barra
+        } = opts;
+  const n = labels.length || 1;
+  const padL = 48, padR = 12;
+  const padT = mostrarValores ? (ejeAdaptativo ? 26 : 22) : 12;
+
+  // Eje X: si las etiquetas no entran, primero se muestra una cada 2 meses;
+  // si aún así no entran, se inclinan 30° y se espacian lo necesario.
+  // Siempre queda rotulado el último mes. Las barras son todas visibles.
+  let pasoEtiqueta = 1, rotar = false;
+  const gapPrevio = (w - padL - padR) / n;
+  if(ejeAdaptativo){
+    const largo = Math.max(1, ...labels.map(l=>String(l).length));
+    const necesario = largo * 6.6 + 10;
+    if(gapPrevio < necesario){
+      if(gapPrevio * 2 >= necesario) pasoEtiqueta = 2;
+      else { rotar = true; pasoEtiqueta = Math.max(2, Math.ceil(30 / gapPrevio)); }
+    }
+  }
+  const padB = rotar ? 46 : 34;
   const innerW = w - padL - padR, innerH = h - padT - padB;
   const max = Math.max(1, ...values.map(v=>v||0));
-  const n = labels.length || 1;
   const gap = innerW / n;
-  const bw = Math.max(4, gap * 0.55);
+  const bw = ejeAdaptativo ? Math.max(4, Math.min(anchoMaxBarra, gap * 0.6)) : Math.max(4, gap * 0.55);
   const ticks = 4;
+  const colEje = '#8b93a3';
   let gridSvg = '';
   for(let t=0;t<=ticks;t++){
     const val = max * t/ticks;
     const y = padT + innerH - (innerH * t/ticks);
-    gridSvg += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${w-padR}" y2="${y.toFixed(1)}" stroke="#eceef2" stroke-width="1"/>`;
-    gridSvg += `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="#8b93a3" text-anchor="end">${fmtNum(val,decTicks)}</text>`;
+    const stroke = (ejeAdaptativo && t===0) ? '#dde1e8' : '#eceef2';
+    gridSvg += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${w-padR}" y2="${y.toFixed(1)}" stroke="${stroke}" stroke-width="1"/>`;
+    gridSvg += `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="${colEje}" text-anchor="end">${fmtNum(val,decTicks)}</text>`;
+  }
+  // Tamaño del valor sobre la barra: se achica un poco si no entra en el ancho disponible.
+  const textosValor = values.map(v => v ? fmtNum(v,decValores) : '');
+  // Si con muchos meses los valores igual no entran, se muestran en los mismos
+  // meses rotulados en el eje X (el resto queda disponible en el tooltip).
+  let fsValor = 10, pasoValor = 1;
+  if(ejeAdaptativo){
+    const largoValor = Math.max(1, ...textosValor.map(t=>t.length));
+    const anchoTexto = fs => largoValor * fs * 0.62;
+    while(fsValor > 8 && anchoTexto(fsValor) > gap - 3) fsValor -= 0.5;
+    if(anchoTexto(fsValor) > gap - 3){
+      pasoValor = Math.max(pasoEtiqueta, Math.ceil((anchoTexto(9) + 4) / gap));
+      fsValor = 9;
+    }
   }
   const bars = values.map((v,i)=>{
     const bh = max ? ((v||0)/max) * innerH : 0;
     const x = padL + i*gap + (gap-bw)/2;
     const y = padT + innerH - bh;
-    const valTxt = (mostrarValores && v) ? `<text x="${(x+bw/2).toFixed(1)}" y="${(y-6).toFixed(1)}" font-size="10" font-weight="600" fill="#4a5363" text-anchor="middle">${fmtNum(v,decValores)}</text>` : '';
-    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0,bh).toFixed(1)}" rx="3" fill="${color}"><title>${esc(labels[i])}: ${fmtNum(v,decValores)}</title></rect>${valTxt}`;
+    const tip = `${esc(titulos ? titulos[i] : labels[i])}: ${fmtNum(v,decValores)}`;
+    const valTxt = (mostrarValores && v && ((n-1-i) % pasoValor) === 0) ? `<text x="${(x+bw/2).toFixed(1)}" y="${(y-6).toFixed(1)}" font-size="${fsValor}" font-weight="600" fill="#4a5363" text-anchor="middle" pointer-events="none">${textosValor[i]}</text>` : '';
+    return `<rect class="bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0,bh).toFixed(1)}" rx="${ejeAdaptativo?4:3}" fill="${color}"><title>${tip}</title></rect>${valTxt}`;
   }).join('');
   const labelsSvg = labels.map((l,i)=>{
+    if(((n-1-i) % pasoEtiqueta) !== 0) return '';
     const x = padL + i*gap + gap/2;
-    return `<text x="${x.toFixed(1)}" y="${h-10}" font-size="10" fill="#8b93a3" text-anchor="middle">${esc(l)}</text>`;
+    if(rotar){
+      const y = h - padB + 16;
+      return `<text x="${x.toFixed(1)}" y="${y}" font-size="10" fill="${colEje}" text-anchor="end" transform="rotate(-30 ${x.toFixed(1)} ${y})">${esc(l)}</text>`;
+    }
+    return `<text x="${x.toFixed(1)}" y="${h-10}" font-size="10" fill="${colEje}" text-anchor="middle"${ejeAdaptativo?' letter-spacing=".3"':''}>${esc(l)}</text>`;
   }).join('');
-  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:100%">${gridSvg}${bars}${labelsSvg}</svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:100%"${ejeAdaptativo?' class="bar-chart"':''}>${gridSvg}${bars}${labelsSvg}</svg>`;
 }
 
 /* ---------- RESUMEN GPS ---------- */
