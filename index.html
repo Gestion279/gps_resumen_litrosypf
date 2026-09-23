@@ -501,29 +501,18 @@
     .ind-grid{grid-template-columns:minmax(0,1fr);}
     .config-box{padding:26px;}
   }
-  /* ---------- Reporte YPF ---------- */
-  .seg{display:inline-flex;border:1px solid var(--slate-200);border-radius:var(--radius-sm);overflow:hidden;background:#fff;}
-  .seg button{border:none;background:none;padding:7px 13px;font-size:12.5px;font-weight:600;color:var(--slate-600);}
-  .seg button + button{border-left:1px solid var(--slate-200);}
-  .seg button:hover{background:var(--slate-50);}
-  .seg button.on{background:var(--teal-50);color:var(--teal-700);}
-  .seg button:focus-visible, .ypf-chip:focus-visible{outline:2px solid var(--teal-700);outline-offset:-2px;}
-  #ypf-tabla tbody tr[data-dom]:not(.pivot-total-row){cursor:pointer;}
-  #ypf-tabla tbody tr[data-dom]:hover td{background:var(--teal-50);}
-  .ypf-scroll{max-height:460px;}
-  .ypf-scroll table thead th{position:sticky;top:0;background:#fff;z-index:3;box-shadow:0 1px 0 var(--slate-200);}
-  .ypf-scroll td{padding:8px 14px;vertical-align:top;}
-  .ypf-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 20px 14px 20px;}
-  .ypf-chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--slate-200);background:#fff;border-radius:99px;padding:4px 6px 4px 12px;font-size:12px;font-weight:600;color:var(--slate-400);}
-  .ypf-chip .n{min-width:22px;padding:1px 7px;border-radius:99px;background:var(--slate-100);color:var(--slate-600);font-size:11px;text-align:center;}
-  .ypf-chip.on{border-color:var(--teal-600);color:var(--teal-700);background:var(--teal-50);}
-  .ypf-chip.on .n{background:#fff;color:var(--teal-700);}
-  .ypf-badges{display:flex;flex-wrap:wrap;gap:4px;}
-  .ypf-badges .aud-badge{padding:2px 8px;font-size:11px;}
-  .ypf-check{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--slate-600);font-weight:600;cursor:pointer;white-space:nowrap;}
+  /* ---------- Reporte YPF (histórico de cargas) ---------- */
+  .ypf-date{gap:0;cursor:pointer;}
+  .ypf-date-l{font-size:12px;color:var(--slate-400);font-weight:600;margin-right:8px;}
+  .ypf-date input{border:none;background:transparent;padding:0;color:var(--slate-800);font-weight:600;font-size:12.5px;font-family:inherit;}
+  .ypf-date input:focus{outline:none;}
+  .ypf-date:focus-within{border-color:var(--teal-600);}
+  .ypf-scroll{max-height:calc(100vh - 290px);min-height:240px;}
+  table.ypf-hist td{white-space:nowrap;}
+  table.ypf-hist tbody tr:hover td{background:var(--teal-50);}
+  .ypf-mas{display:flex;align-items:center;justify-content:center;gap:14px;padding:14px 0 4px 0;font-size:12.5px;}
   @media (max-width: 780px){
-    .modal.aud-modal .aud-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
-    .ypf-chips{padding:0 14px 12px 14px;}
+    .ypf-scroll{max-height:none;}
   }
   html{scroll-padding-top:env(safe-area-inset-top,0px);}
 </style>
@@ -3133,123 +3122,105 @@ async function ejecutarImportacion(resultEl){
 }
 
 /* =========================================================================
-   REPORTE YPF — tickets de carga de YPF en Ruta (hoja "ReporteConsumos")
+   REPORTE YPF — Histórico de cargas de combustible (tabla de consulta)
    -------------------------------------------------------------------------
-   Carga diferida: esta hoja consulta Supabase recién cuando se abre y guarda
-   su propia copia en memoria (cacheYpf), así que no hace más lenta la carga
-   del resto del Dashboard. No baja los tickets: baja el resumen mensual por
-   vehículo (vista ypf_resumen_mensual) y la lista de cargas con señales
-   (vista ypf_alertas), que ya vienen calculadas desde el servidor. El
-   detalle ticket por ticket se pide solo al abrir un vehículo.
-   Tablas y vistas: ver ypf_schema.sql.
+   Muestra las cargas tal como vienen en la planilla de YPF en Ruta, sin
+   evaluar ni corregir nada. Solo consulta Supabase al abrir la hoja y pide
+   únicamente el rango de fechas elegido y las 7 columnas que se muestran.
+   Tabla: ypf_consumos (ver ypf_schema.sql).
    ========================================================================= */
 
 // El DNI del conductor viene en la planilla. Por defecto NO se guarda en
 // Supabase (la app usa la anon key). Cambiar a true solo si hace falta.
 const YPF_GUARDAR_DNI = false;
 const YPF_LOTE_UPSERT = 500;
+const YPF_FILAS_POR_TANDA = 500;   // filas que se dibujan de a una tanda ("Mostrar más")
 
-// nivel: 3 = prioritaria, 2 = revisar, 1 = observar (mismos colores que Auditoría)
-const YPF_SENALES = {
-  odometro_retrocede:   { label:'Odómetro retrocede',   nivel:3, desc:'El odómetro baja respecto de la última lectura válida y no se recupera en la carga siguiente.' },
-  recarga_rapida:       { label:'Recarga en menos de 2 h', nivel:3, desc:'Dos cargas del mismo vehículo con menos de 2 horas de diferencia.' },
-  salto_odometro:       { label:'Salto de odómetro',    nivel:2, desc:'Más de 3.000 km desde la última carga con tarjeta: posibles cargas por fuera de la tarjeta.' },
-  carga_alta:           { label:'Carga alta',           nivel:2, desc:'Más de 1,8 veces la carga habitual (mediana) del vehículo y más de 60 litros.' },
-  producto_inusual:     { label:'Combustible inusual',  nivel:2, desc:'Combustible distinto del que usa habitualmente el vehículo (ej. nafta en un diésel).' },
-  odometro_mal_cargado: { label:'Odómetro mal cargado', nivel:1, desc:'Valor aislado que no encaja con la carga anterior ni con la siguiente. No se usa para calcular km.' },
-};
-const YPF_METRICAS = {
-  litros:  { campo:'litros',        label:'Litros',  titulo:'Litros cargados',   dec:1, decTicks:0, color:'#7F9C96' },
-  importe: { campo:'importe_total', label:'Importe', titulo:'Importe facturado', dec:0, decTicks:0, color:'#4D7C8A', prefijo:'$ ' },
-  cargas:  { campo:'cargas',        label:'Cargas',  titulo:'Cantidad de cargas', dec:0, decTicks:0, color:'#8FAD88' },
-};
+// Columnas de la tabla, en este orden.
+const YPF_COLUMNAS = [
+  { key:'fecha',            label:'Fecha' },
+  { key:'patente_original', label:'ID Tarjeta' },
+  { key:'litros',           label:'Litros unidades', num:true },
+  { key:'odometro',         label:'Odómetro',        num:true },
+  { key:'conductor',        label:'Conductor' },
+  { key:'establecimiento',  label:'Establecimiento' },
+  { key:'provincia',        label:'Provincia' },
+];
 
-const cacheYpf = { resumen:null, alertas:null, promesa:null };
-function invalidarCacheYpf(){ cacheYpf.resumen = null; cacheYpf.alertas = null; cacheYpf.promesa = null; }
+// Caché por rango de fechas: volver a la hoja o cambiar el orden no vuelve a consultar.
+const cacheYpf = { ultimaFecha:undefined, rangos:new Map() };
+function invalidarCacheYpf(){ cacheYpf.ultimaFecha = undefined; cacheYpf.rangos.clear(); }
 
-const YPF_NUM_RESUMEN = ['cargas','litros','importe_combustible','importe_otros','importe_total','km_odometro','cargas_con_alerta','odometros_mal_cargados','conductores'];
-const YPF_NUM_ALERTA = ['litros','importe_yer','odometro','odometro_anterior','km_desde_anterior','horas_desde_anterior','litros_mediana'];
-function ypfNumerico(rows, campos){
-  rows.forEach(r=>campos.forEach(c=>{ if(r[c]!==null && r[c]!==undefined) r[c] = Number(r[c]); }));
-  return rows;
-}
-async function cargarDatosYpf(){
-  if(cacheYpf.resumen) return cacheYpf;
-  if(!cacheYpf.promesa){
-    cacheYpf.promesa = Promise.all([
-      sbSelectParalelo('ypf_resumen_mensual', 'clave, vehiculo_dominio, periodo, patente_original, ' + YPF_NUM_RESUMEN.join(', '), 'clave'),
-      sbSelectParalelo('ypf_alertas', 'remito, fecha, periodo, vehiculo_dominio, patente_original, conductor, establecimiento, localidad, provincia, producto, familia_habitual, senales, ' + YPF_NUM_ALERTA.join(', '), 'remito'),
-    ]).then(([resumen, alertas])=>{
-      cacheYpf.resumen = ypfNumerico(resumen, YPF_NUM_RESUMEN);
-      cacheYpf.alertas = ypfNumerico(alertas, YPF_NUM_ALERTA);
-      return cacheYpf;
-    }).catch(e=>{ cacheYpf.promesa = null; throw e; });
-  }
-  return cacheYpf.promesa;
-}
 function ypfEsErrorDeTablas(e){
   const msg = String(e?.message || e || '');
-  return e?.code === '42P01' || e?.code === 'PGRST205' || /ypf_(resumen_mensual|alertas|consumos|importaciones|cargas_calc)/.test(msg);
+  return e?.code === '42P01' || e?.code === 'PGRST205' || /ypf_(consumos|importaciones)/.test(msg);
+}
+const pad2 = n => String(n).padStart(2,'0');
+function ypfFmtFecha(s){
+  if(!s) return '';
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+  return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}${m[6]?':'+m[6]:''}` : String(s);
+}
+// El odómetro se muestra tal cual quedó cargado: sin separador de miles ni redondeo.
+function ypfFmtOdometro(v){
+  if(v===null || v===undefined || v==='') return '';
+  const n = Number(v);
+  return isNaN(n) ? String(v) : String(n).replace('.', ',');
+}
+function ypfIsoMasUnDia(iso){
+  const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0,10);
 }
 
-// Nombre para mostrar: el del GPS si el vehículo existe en "vehiculos",
-// si no la patente tal cual vino en la planilla YPF.
-function ypfMapaNombres(vehiculos, resumen){
-  const porDominio = new Map((vehiculos||[]).map(v=>[v.dominio, v]));
-  const nombres = new Map();
-  resumen.forEach(r=>{
-    if(nombres.has(r.vehiculo_dominio)) return;
-    const v = porDominio.get(r.vehiculo_dominio);
-    nombres.set(r.vehiculo_dominio, v ? (v.nombre_completo || nombreCompleto(v.dominio, v.label) || v.dominio) : (r.patente_original || r.vehiculo_dominio));
+async function ypfUltimaFecha(){
+  if(cacheYpf.ultimaFecha !== undefined) return cacheYpf.ultimaFecha;
+  const { data, error } = await state.sb.from('ypf_consumos').select('fecha').order('fecha', { ascending:false }).limit(1);
+  if(error) throw error;
+  cacheYpf.ultimaFecha = data && data.length ? String(data[0].fecha).slice(0,10) : null;
+  return cacheYpf.ultimaFecha;
+}
+async function ypfCargasEnRango(desde, hasta){
+  const clave = desde + '|' + hasta;
+  if(cacheYpf.rangos.has(clave)) return cacheYpf.rangos.get(clave);
+  const filas = await sbSelectPaginado(() =>
+    state.sb.from('ypf_consumos')
+      .select('remito, fecha, patente_original, litros, odometro, conductor, establecimiento, provincia')
+      .gte('fecha', desde).lt('fecha', ypfIsoMasUnDia(hasta))
+      .order('fecha', { ascending:false }).order('remito', { ascending:true })
+  );
+  filas.forEach(r=>{ if(r.litros!==null) r.litros = Number(r.litros); if(r.odometro!==null) r.odometro = Number(r.odometro); });
+  cacheYpf.rangos.set(clave, filas);
+  return filas;
+}
+
+function ypfOrdenar(rows, sort){
+  const col = YPF_COLUMNAS.find(c=>c.key===sort.key) || YPF_COLUMNAS[0];
+  const f = sort.dir === 'asc' ? 1 : -1;
+  return [...rows].sort((a,b)=>{
+    const va = a[col.key], vb = b[col.key];
+    const na = va===null || va===undefined || va==='', nb = vb===null || vb===undefined || vb==='';
+    if(na || nb) return na && nb ? 0 : na ? 1 : -1;          // vacíos siempre al final
+    const r = col.num ? (va - vb) : String(va).localeCompare(String(vb), 'es');
+    return r * f || String(b.fecha).localeCompare(String(a.fecha));
   });
-  return nombres;
 }
-function ypfFmtFecha(s){
-  if(!s) return '—';
-  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-  return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : String(s);
-}
-function ypfFmtMoneda(n, dec){ return (n===null || n===undefined || isNaN(n)) ? '—' : '$ ' + fmtNum(n, dec||0); }
-function ypfFiltrar(rows, f){
-  let out = rows;
-  if(f.periodo && f.periodo.length){ const s = new Set(f.periodo); out = out.filter(r=>s.has(r.periodo)); }
-  if(f.vehiculo && f.vehiculo.length){ const s = new Set(f.vehiculo); out = out.filter(r=>s.has(r.vehiculo_dominio)); }
-  return out;
-}
-function ypfAgregar(rows){
-  const litros = sumField(rows,'litros'), importeComb = sumField(rows,'importe_combustible');
-  const conKm = rows.filter(r=>r.km_odometro>0);
-  return {
-    vehiculos: new Set(rows.filter(r=>r.cargas>0).map(r=>r.vehiculo_dominio)).size,
-    cargas: sumField(rows,'cargas'),
-    litros,
-    importe: sumField(rows,'importe_total'),
-    precio: litros ? importeComb/litros : null,
-    km: conKm.length ? sumField(conKm,'km_odometro') : null,
-    alertas: sumField(rows,'cargas_con_alerta'),
-  };
-}
-function ypfBadgeSenal(s){
-  const d = YPF_SENALES[s] || { label:s, nivel:1, desc:'' };
-  const cls = d.nivel>=3 ? 'aud-prioritaria' : d.nivel===2 ? 'aud-revisar' : 'aud-observar';
-  return `<span class="aud-badge ${cls}" title="${esc(d.desc)}">${esc(d.label)}</span>`;
-}
-function ypfDescargarCSV(headers, filas, nombre){
-  const lines = [headers.join(';'), ...filas.map(f=>f.map(v=>String(v===null||v===undefined?'':v).replace(/;/g,',').replace(/\n/g,' ')).join(';'))];
-  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type:'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `${nombre}.csv`;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
+function ypfCelda(col, r){
+  const v = r[col.key];
+  if(col.key==='fecha') return esc(ypfFmtFecha(v));
+  if(col.key==='litros') return v===null || v===undefined ? '' : fmtNum(v, 2);
+  if(col.key==='odometro') return esc(ypfFmtOdometro(v));
+  if(col.key==='patente_original') return `<span class="device-name">${esc(v||'')}</span>`;
+  return esc(v||'');
 }
 
 /* ---------- Hoja ---------- */
+let ypfRenderToken = 0;
 async function renderReporteYpf(content){
-  content.innerHTML = `<div class="empty"><span class="spin"></span> Cargando consumos YPF…</div>`;
-  let datos, base;
+  const token = ++ypfRenderToken;   // si llega una consulta más nueva, la vieja no pisa la pantalla
+  content.innerHTML = `<div class="empty"><span class="spin"></span> Cargando histórico de cargas…</div>`;
+  let ultima;
   try{
-    [datos, base] = await Promise.all([cargarDatosYpf(), cargarDatosBase()]);
+    ultima = await ypfUltimaFecha();
   }catch(e){
     if(ypfEsErrorDeTablas(e)){
       console.error(e);
@@ -3262,332 +3233,124 @@ async function renderReporteYpf(content){
     }
     throw e;
   }
-
-  if(!state.filtersYpf) state.filtersYpf = { periodo:[], vehiculo:[] };
-  if(!state.ypfMetrica) state.ypfMetrica = 'litros';
-  if(!state.ypfSenales) state.ypfSenales = Object.keys(YPF_SENALES).filter(s=>s!=='odometro_mal_cargado');
-  if(state.ypfSoloDiferencias === undefined) state.ypfSoloDiferencias = true;
-  const f = state.filtersYpf;
-
-  if(!datos.resumen.length){
+  if(token !== ypfRenderToken) return;
+  if(!ultima){
     content.innerHTML = `<div class="panel"><div class="empty">
-      Todavía no hay consumos YPF cargados.<br><br>
+      Todavía no hay cargas YPF en Supabase.<br><br>
       <button class="btn btn-primary" id="ypf-empty-cargar">${icon('upload')} Cargar planilla YPF</button>
     </div></div>`;
     document.getElementById('ypf-empty-cargar').onclick = () => abrirModalImportarYpf();
     return;
   }
 
-  const nombres = ypfMapaNombres(base.vehiculos, datos.resumen);
-  const nombreDe = d => nombres.get(d) || d;
-  const periodosOpts = [...new Set(datos.resumen.map(r=>r.periodo))].sort().reverse().map(p=>({ value:p, label:periodoLabelFromKey(p) }));
-  const vehiculosOpts = [...nombres.entries()].map(([value,label])=>({ value, label })).sort((a,b)=>a.label.localeCompare(b.label));
-
-  const rows = ypfFiltrar(datos.resumen, f);
-  const k = ypfAgregar(rows);
-  let kPrev = null;
-  if(f.periodo.length===1){
-    const prevRows = ypfFiltrar(datos.resumen, { ...f, periodo:[periodoAnterior(f.periodo[0])] });
-    if(prevRows.length) kPrev = ypfAgregar(prevRows);
-  }
-
-  // --- métrica elegida: gráfico + tabla dinámica ---
-  const met = YPF_METRICAS[state.ypfMetrica];
-  const filasPivot = rows.map(r=>({ ...r, dispositivo_original: nombreDe(r.vehiculo_dominio) }));
-  const pivot = buildPivot(filasPivot, { aggregate: rs => sumField(rs, met.campo) });
-
-  // --- conciliación con los litros del reporte GPS ---
-  const periodosYpf = new Set(datos.resumen.map(r=>r.periodo));
-  const gpsPorClave = new Map();
-  (base.reportes||[]).forEach(r=>{
-    if(r.litros_ypf===null || r.litros_ypf===undefined || !periodosYpf.has(r.periodo)) return;
-    const clave = r.vehiculo_dominio + '|' + r.periodo;
-    gpsPorClave.set(clave, (gpsPorClave.get(clave)||0) + Number(r.litros_ypf));
-  });
-  const conc = new Map();
-  rows.filter(r=>r.litros>0).forEach(r=>conc.set(r.clave, { dominio:r.vehiculo_dominio, periodo:r.periodo, tickets:r.litros, gps:null }));
-  gpsPorClave.forEach((litros, clave)=>{
-    const [dominio, periodo] = clave.split('|');
-    if(f.periodo.length && !f.periodo.includes(periodo)) return;
-    if(f.vehiculo.length && !f.vehiculo.includes(dominio)) return;
-    if(conc.has(clave)) conc.get(clave).gps = litros;
-    else if(litros>0) conc.set(clave, { dominio, periodo, tickets:null, gps:litros });
-  });
-  const concFilas = [...conc.values()].map(c=>{
-    const dif = (c.tickets!==null && c.gps!==null) ? c.tickets - c.gps : null;
-    const pct = (dif!==null && c.gps) ? dif / c.gps * 100 : null;
-    return { ...c, nombre:nombreDe(c.dominio), dif, pct };
-  });
-  const concCoinciden = concFilas.filter(c=>c.pct!==null && Math.abs(c.pct)<=5).length;
-  const concComparables = concFilas.filter(c=>c.pct!==null).length;
-  const concSinPar = concFilas.length - concComparables;
-
-  // --- alertas ---
-  const alertasPeriodo = ypfFiltrar(datos.alertas, f);
-  const conteoSenales = {};
-  alertasPeriodo.forEach(a=>(a.senales||[]).forEach(s=>{ conteoSenales[s] = (conteoSenales[s]||0) + 1; }));
+  // Período por defecto: el mes de la última carga registrada.
+  if(!state.ypfConsulta) state.ypfConsulta = { desde: ultima.slice(0,8) + '01', hasta: ultima, tarjetas:[], busqueda:'', sort:{ key:'fecha', dir:'desc' } };
+  const q = state.ypfConsulta;
 
   content.innerHTML = `
     <div class="filters">
-      ${multiSelectTrigger('fy-periodo','calendar','Todos los períodos', periodosOpts, f.periodo)}
-      ${multiSelectTrigger('fy-vehiculo','car','Todos los vehículos', vehiculosOpts, f.vehiculo)}
+      <label class="filter-pill ypf-date">${icon('calendar')}<span class="ypf-date-l">Desde</span><input type="date" id="ypf-desde" value="${esc(q.desde)}" max="${esc(ultima)}"></label>
+      <label class="filter-pill ypf-date">${icon('calendar')}<span class="ypf-date-l">Hasta</span><input type="date" id="ypf-hasta" value="${esc(q.hasta)}"></label>
+      <div id="ypf-tarjeta-slot"></div>
     </div>
-    <div class="kpi-grid">
-      ${kpiCard({label:'Vehículos', dec:0, unit:'', iconName:'truck', curr:k.vehiculos, prev:kPrev?.vehiculos, staticCaption:'Con cargas en el período'})}
-      ${kpiCard({label:'Cargas', dec:0, unit:'', iconName:'fuel', curr:k.cargas, prev:kPrev?.cargas})}
-      ${kpiCard({label:'Litros cargados', dec:1, unit:'L', iconName:'droplet', curr:k.litros, prev:kPrev?.litros})}
-      ${kpiCard({label:'Importe facturado', dec:0, unit:'', prefix:'$ ', iconName:'tag', curr:k.importe, prev:kPrev?.importe, invert:true})}
-      ${kpiCard({label:'Precio promedio', dec:0, unit:'/L', prefix:'$ ', iconName:'gauge', curr:k.precio, prev:kPrev?.precio, invert:true})}
-      ${kpiCard({label:'Km según odómetro', dec:0, unit:'km', iconName:'car', curr:k.km, prev:kPrev?.km, staticCaption:'Entre cargas con lectura válida'})}
-      ${kpiCard({label:'Cargas para revisar', dec:0, unit:'', iconName:'alert', curr:k.alertas, prev:kPrev?.alertas, invert:true, staticCaption:'Ver lista más abajo'})}
-    </div>
-
-    <div class="panel panel-graf">
-      <div class="panel-head">
-        <div class="panel-head-left"><span class="ic ic-orange">${icon('fuel')}</span><div><h2>${esc(met.titulo)} por mes</h2><div class="sub">Total de la flota, según tickets YPF</div></div></div>
-        <div class="panel-head-actions">
-          <div class="seg" role="group" aria-label="Métrica">
-            ${Object.entries(YPF_METRICAS).map(([key,m])=>`<button type="button" data-met="${key}" class="${key===state.ypfMetrica?'on':''}" aria-pressed="${key===state.ypfMetrica}">${esc(m.label)}</button>`).join('')}
-          </div>
-        </div>
-      </div>
-      <div class="panel-body"><div class="graf-area">${pivot.periodos.length ? miniBarChart(
-        pivot.periodos.map(periodoLabelCompacta),
-        pivot.periodos.map(p=>pivot.totalPorPeriodo[p]||0),
-        { ...GRAF_ANCHO_COMPLETO, color:met.color, decValores:0, decTicks:met.decTicks, decTooltip:met.dec, titulos:pivot.periodos.map(periodoLabelCorta) }
-      ) : `<div class="empty">No hay cargas para estos filtros.</div>`}</div></div>
-    </div>
-
     <div class="panel">
       <div class="panel-head">
-        <div class="panel-head-left"><span class="ic">${icon('droplet')}</span><div><h2>${esc(met.titulo)} por vehículo</h2><div class="sub">Por vehículo y mes · clic en un vehículo para ver sus tickets</div></div></div>
+        <div class="panel-head-left"><span class="ic">${icon('fuel')}</span><div><h2>Histórico de cargas de combustible</h2><div class="sub" id="ypf-sub">Buscando cargas…</div></div></div>
         <div class="panel-head-actions">
-          <div class="search-box">${icon('search')}<input id="ypf-search" placeholder="Buscar vehículo…"></div>
-          <button class="btn btn-secondary" id="ypf-export">${icon('download')} Exportar</button>
+          <div class="search-box">${icon('search')}<input id="ypf-search" placeholder="Buscar en la tabla…" value="${esc(q.busqueda)}"></div>
+          <button class="btn btn-secondary" id="ypf-export" disabled>${icon('download')} Exportar</button>
         </div>
       </div>
-      <div class="pivot-scroll" id="ypf-tabla">
-        ${pivot.devices.length ? pivotTableHtml(pivot,{decimales:met.dec}) : `<div class="empty">No hay cargas para estos filtros.</div>`}
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <div class="panel-head-left"><span class="ic ic-blue">${icon('fix')}</span><div><h2>Conciliación con GPS</h2><div class="sub">Litros según tickets YPF contra litros del reporte GPS · ${fmtNum(concCoinciden,0)} de ${fmtNum(concComparables,0)} vehículo-mes coinciden dentro del 5 %${concSinPar ? ` · ${fmtNum(concSinPar,0)} sin dato de una de las dos fuentes` : ''}</div></div></div>
-        <div class="panel-head-actions">
-          <label class="ypf-check"><input type="checkbox" id="conc-solo" ${state.ypfSoloDiferencias?'checked':''}> Solo diferencias</label>
-          <div class="search-box">${icon('search')}<input id="conc-search" placeholder="Buscar vehículo…"></div>
-          <button class="btn btn-secondary" id="conc-export">${icon('download')} Exportar</button>
-        </div>
-      </div>
-      <div class="pivot-scroll ypf-scroll" id="conc-tabla"></div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <div class="panel-head-left"><span class="ic">${icon('alert')}</span><div><h2>Cargas con señales</h2><div class="sub">Tocá una señal para mostrarla u ocultarla · pasá el mouse para ver el criterio</div></div></div>
-        <div class="panel-head-actions">
-          <div class="search-box">${icon('search')}<input id="al-search" placeholder="Vehículo, conductor, estación…"></div>
-          <button class="btn btn-secondary" id="al-export">${icon('download')} Exportar</button>
-        </div>
-      </div>
-      <div class="ypf-chips" id="al-chips">
-        ${Object.entries(YPF_SENALES).map(([s,d])=>`<button type="button" class="ypf-chip ${state.ypfSenales.includes(s)?'on':''}" data-senal="${s}" title="${esc(d.desc)}" aria-pressed="${state.ypfSenales.includes(s)}">${esc(d.label)}<span class="n">${fmtNum(conteoSenales[s]||0,0)}</span></button>`).join('')}
-      </div>
-      <div class="pivot-scroll ypf-scroll" id="al-tabla"></div>
+      <div class="pivot-scroll ypf-scroll" id="ypf-tabla"><div class="empty"><span class="spin"></span> Buscando cargas…</div></div>
     </div>
   `;
 
-  // Filtros propios de esta hoja (no cambian los de las hojas GPS)
-  const bindMs = (id, opciones, clave, todos) => {
-    document.getElementById(id+'-trigger').onclick = (e) => {
-      e.stopPropagation();
-      abrirMultiSelectPanel(id, opciones, f[clave], todos, (nuevos)=>{ f[clave] = nuevos; renderView(); });
-    };
+  const aplicarFechas = () => {
+    const d = document.getElementById('ypf-desde').value, h = document.getElementById('ypf-hasta').value;
+    if(!d || !h) return;
+    if(d > h){ toast('La fecha "Desde" no puede ser posterior a "Hasta".', 'error'); return; }
+    q.desde = d; q.hasta = h; q.tarjetas = [];
+    renderView();
   };
-  bindMs('fy-periodo', periodosOpts, 'periodo', 'Todos los períodos');
-  bindMs('fy-vehiculo', vehiculosOpts, 'vehiculo', 'Todos los vehículos');
+  document.getElementById('ypf-desde').onchange = aplicarFechas;
+  document.getElementById('ypf-hasta').onchange = aplicarFechas;
 
-  content.querySelectorAll('.seg button[data-met]').forEach(b=>{
-    b.onclick = () => { state.ypfMetrica = b.dataset.met; renderView(); };
-  });
-
-  // Tabla dinámica
-  const bindFilasPivot = () => {
-    document.querySelectorAll('#ypf-tabla tbody tr[data-dom]').forEach(tr=>{
-      tr.onclick = () => abrirDetalleYpf(tr.dataset.dom, nombreDe(tr.dataset.dom));
-    });
-  };
-  if(pivot.devices.length){
-    ajustarAlturaPivot('ypf-tabla');
-    window.onresize = () => ajustarAlturaPivot('ypf-tabla');
-    bindFilasPivot();
-    document.getElementById('ypf-search').oninput = (e)=>{
-      const cont = document.getElementById('ypf-tabla');
-      cont.innerHTML = pivotTableHtml(pivot,{decimales:met.dec, searchQuery:e.target.value});
-      cont.scrollTop = 0;
-      ajustarAlturaPivot('ypf-tabla');
-      bindFilasPivot();
-    };
-    document.getElementById('ypf-export').onclick = () => exportarPivotCSV(pivot, `ypf_${state.ypfMetrica}_por_vehiculo`, met.dec);
-  }
-
-  // Conciliación
-  const pintarConciliacion = () => {
-    const q = (document.getElementById('conc-search')?.value || '').toLowerCase();
-    let lista = concFilas;
-    if(state.ypfSoloDiferencias) lista = lista.filter(c=>c.pct===null || Math.abs(c.pct)>5);
-    if(q) lista = lista.filter(c=>c.nombre.toLowerCase().includes(q) || c.dominio.toLowerCase().includes(q));
-    // Primero las diferencias reales (mayor a menor); al final, los que no tienen contraparte.
-    lista = [...lista].sort((a,b)=>{
-      const va = a.dif===null ? -1 : Math.abs(a.dif), vb = b.dif===null ? -1 : Math.abs(b.dif);
-      return vb - va || b.periodo.localeCompare(a.periodo) || a.nombre.localeCompare(b.nombre);
-    });
-    const cont = document.getElementById('conc-tabla');
-    if(!lista.length){ cont.innerHTML = `<div class="empty">${concFilas.length ? 'Todos los vehículo-mes coinciden dentro del 5 %.' : 'No hay litros para comparar con estos filtros.'}</div>`; return; }
-    const clasePct = p => p===null ? '' : Math.abs(p)>=25 ? 'aud-txt-3' : Math.abs(p)>=10 ? 'aud-txt-2' : Math.abs(p)>5 ? 'aud-txt-1' : '';
-    cont.innerHTML = `<table>
-      <thead><tr><th>Vehículo</th><th>Período</th><th class="num">Litros tickets</th><th class="num">Litros GPS</th><th class="num">Diferencia</th><th class="num">Dif. %</th></tr></thead>
-      <tbody>${lista.map(c=>`<tr>
-        <td><span class="device-name">${esc(c.nombre)}</span></td>
-        <td>${esc(periodoLabelFromKey(c.periodo))}</td>
-        <td class="num">${c.tickets===null ? '<span class="muted">sin tickets</span>' : fmtNum(c.tickets,1)}</td>
-        <td class="num">${c.gps===null ? '<span class="muted">sin dato GPS</span>' : fmtNum(c.gps,1)}</td>
-        <td class="num ${clasePct(c.pct)}">${c.dif===null ? '—' : (c.dif>0?'+':'') + fmtNum(c.dif,1)}</td>
-        <td class="num ${clasePct(c.pct)}">${c.pct===null ? '—' : (c.pct>0?'+':'') + fmtNum(c.pct,1) + ' %'}</td>
-      </tr>`).join('')}</tbody>
-    </table>`;
-  };
-  pintarConciliacion();
-  document.getElementById('conc-solo').onchange = (e) => { state.ypfSoloDiferencias = e.target.checked; pintarConciliacion(); };
-  document.getElementById('conc-search').oninput = pintarConciliacion;
-  document.getElementById('conc-export').onclick = () => ypfDescargarCSV(
-    ['Vehiculo','Dominio','Periodo','Litros_tickets','Litros_GPS','Diferencia','Dif_pct'],
-    concFilas.map(c=>[c.nombre, c.dominio, c.periodo, c.tickets??'', c.gps??'', c.dif!==null?c.dif.toFixed(1):'', c.pct!==null?c.pct.toFixed(1):'']),
-    'ypf_conciliacion_gps');
-
-  // Alertas
-  const alertasVisibles = () => {
-    const activas = new Set(state.ypfSenales);
-    const q = (document.getElementById('al-search')?.value || '').toLowerCase();
-    return alertasPeriodo
-      .filter(a=>(a.senales||[]).some(s=>activas.has(s)))
-      .filter(a=>!q || [nombreDe(a.vehiculo_dominio), a.vehiculo_dominio, a.conductor, a.establecimiento, a.localidad, a.provincia].some(v=>String(v||'').toLowerCase().includes(q)))
-      .sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
-  };
-  const pintarAlertas = () => {
-    const lista = alertasVisibles();
-    const cont = document.getElementById('al-tabla');
-    if(!lista.length){ cont.innerHTML = `<div class="empty">No hay cargas con las señales elegidas para estos filtros.</div>`; return; }
-    cont.innerHTML = `<table>
-      <thead><tr><th>Fecha</th><th>Vehículo</th><th>Señales</th><th class="num">Litros</th><th class="num">Odómetro</th><th class="num">Km desde anterior</th><th>Conductor</th><th>Estación</th></tr></thead>
-      <tbody>${lista.map(a=>`<tr class="row-click" data-dom="${esc(a.vehiculo_dominio)}">
-        <td>${esc(ypfFmtFecha(a.fecha))}</td>
-        <td><span class="device-name">${esc(nombreDe(a.vehiculo_dominio))}</span></td>
-        <td><div class="ypf-badges">${(a.senales||[]).map(ypfBadgeSenal).join('')}</div></td>
-        <td class="num">${fmtNum(a.litros,1)}${a.litros_mediana && (a.senales||[]).includes('carga_alta') ? `<span class="aud-sub">habitual ${fmtNum(a.litros_mediana,0)} L</span>` : ''}</td>
-        <td class="num">${fmtNum(a.odometro,0)}${a.odometro_anterior!==null && a.odometro_anterior!==undefined ? `<span class="aud-sub">anterior ${fmtNum(a.odometro_anterior,0)}</span>` : ''}</td>
-        <td class="num">${a.km_desde_anterior===null || a.km_desde_anterior===undefined ? '—' : fmtNum(a.km_desde_anterior,0)}${a.horas_desde_anterior!==null && a.horas_desde_anterior<2 ? `<span class="aud-sub">${fmtNum(a.horas_desde_anterior*60,0)} min después</span>` : ''}</td>
-        <td>${esc(a.conductor||'—')}</td>
-        <td>${esc(a.establecimiento||'—')}<span class="aud-sub">${esc([a.localidad, a.provincia].filter(Boolean).join(', '))}</span></td>
-      </tr>`).join('')}</tbody>
-    </table>`;
-    cont.querySelectorAll('tr[data-dom]').forEach(tr=>{ tr.onclick = () => abrirDetalleYpf(tr.dataset.dom, nombreDe(tr.dataset.dom)); });
-  };
-  pintarAlertas();
-  document.querySelectorAll('#al-chips .ypf-chip').forEach(b=>{
-    b.onclick = () => {
-      const s = b.dataset.senal;
-      state.ypfSenales = state.ypfSenales.includes(s) ? state.ypfSenales.filter(x=>x!==s) : [...state.ypfSenales, s];
-      const on = state.ypfSenales.includes(s);
-      b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
-      pintarAlertas();
-    };
-  });
-  document.getElementById('al-search').oninput = pintarAlertas;
-  document.getElementById('al-export').onclick = () => ypfDescargarCSV(
-    ['Fecha','Vehiculo','Dominio','Remito','Senales','Litros','Odometro','Odometro_anterior','Km_desde_anterior','Conductor','Establecimiento','Localidad','Provincia','Producto'],
-    alertasVisibles().map(a=>[ypfFmtFecha(a.fecha), nombreDe(a.vehiculo_dominio), a.vehiculo_dominio, a.remito, (a.senales||[]).map(s=>YPF_SENALES[s]?.label||s).join(' | '), a.litros, a.odometro, a.odometro_anterior, a.km_desde_anterior, a.conductor, a.establecimiento, a.localidad, a.provincia, a.producto]),
-    'ypf_cargas_con_senales');
-}
-
-/* ---------- Detalle de tickets de un vehículo (se pide al abrirlo) ---------- */
-async function abrirDetalleYpf(dominio, nombre){
-  const f = state.filtersYpf || { periodo:[] };
-  const bg = document.createElement('div');
-  bg.className = 'modal-bg';
-  bg.innerHTML = `<div class="modal aud-modal" role="dialog" aria-modal="true" aria-label="Tickets YPF de ${esc(nombre)}">
-    <div class="aud-modal-head">
-      <div>
-        <div class="aud-modal-kicker">Tickets YPF</div>
-        <h3>${esc(nombre)}</h3>
-        <div class="aud-modal-estado muted">${f.periodo.length ? esc(f.periodo.map(periodoLabelFromKey).join(', ')) : 'Todos los períodos'}</div>
-      </div>
-      <div class="aud-modal-actions">
-        <button class="btn btn-secondary" id="ypfd-export" disabled>${icon('download')} Exportar</button>
-        <button class="icon-btn" id="ypfd-close" title="Cerrar">${icon('close')}</button>
-      </div>
-    </div>
-    <div class="aud-modal-body" id="ypfd-body"><div class="empty"><span class="spin"></span> Cargando tickets…</div></div>
-  </div>`;
-  document.body.appendChild(bg);
-  const cerrar = () => { bg.remove(); document.removeEventListener('keydown', onKey); };
-  const onKey = e => { if(e.key==='Escape') cerrar(); };
-  document.addEventListener('keydown', onKey);
-  bg.querySelector('#ypfd-close').onclick = cerrar;
-  bg.addEventListener('click', e=>{ if(e.target===bg) cerrar(); });
-
+  let filas;
   try{
-    const tickets = ypfNumerico(await sbSelectPaginado(()=>{
-      let q = state.sb.from('ypf_cargas_calc')
-        .select('remito, fecha, periodo, producto, litros, importe_yer, precio_yer, odometro, km_desde_anterior, conductor, establecimiento, localidad, provincia, origen, senales')
-        .eq('vehiculo_dominio', dominio);
-      if(f.periodo.length) q = q.in('periodo', f.periodo);
-      return q.order('fecha', { ascending:false }).order('remito', { ascending:true });
-    }), ['litros','importe_yer','precio_yer','odometro','km_desde_anterior']);
-
-    const body = bg.querySelector('#ypfd-body');
-    if(!tickets.length){ body.innerHTML = `<div class="empty">No hay tickets de combustible para este vehículo en el período elegido.</div>`; return; }
-    const litros = sumField(tickets,'litros'), importe = sumField(tickets,'importe_yer');
-    const conKm = tickets.filter(t=>t.km_desde_anterior>0 && t.km_desde_anterior<=3000);
-    const km = sumField(conKm,'km_desde_anterior'), litrosConKm = sumField(conKm,'litros');
-    const l100 = km ? litrosConKm/(km/100) : null;
-    body.innerHTML = `
-      <div class="aud-metric-grid" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:16px">
-        <div><div class="l">Cargas</div><div class="v">${fmtNum(tickets.length,0)}</div></div>
-        <div><div class="l">Litros</div><div class="v">${fmtNum(litros,1)}</div></div>
-        <div><div class="l">Importe</div><div class="v">${ypfFmtMoneda(importe,0)}</div></div>
-        <div><div class="l">Km según odómetro</div><div class="v">${fmtNum(km,0)}</div></div>
-        <div><div class="l">Litros cada 100 km</div><div class="v">${fmtNum(l100,1)}</div></div>
-      </div>
-      <div class="aud-scroll-x aud-hist-wrap" style="max-height:52vh">
-        <table class="aud-hist">
-          <thead><tr><th>Fecha</th><th>Producto</th><th class="num">Litros</th><th class="num">Importe</th><th class="num">$/L</th><th class="num">Odómetro</th><th class="num">Km</th><th>Conductor</th><th>Estación</th><th>Señales</th></tr></thead>
-          <tbody>${tickets.map(t=>`<tr>
-            <td>${esc(ypfFmtFecha(t.fecha))}</td>
-            <td>${esc(t.producto||'—')}</td>
-            <td class="num">${fmtNum(t.litros,2)}</td>
-            <td class="num">${ypfFmtMoneda(t.importe_yer,0)}</td>
-            <td class="num">${fmtNum(t.precio_yer,0)}</td>
-            <td class="num">${fmtNum(t.odometro,0)}</td>
-            <td class="num">${t.km_desde_anterior===null||t.km_desde_anterior===undefined ? '—' : fmtNum(t.km_desde_anterior,0)}</td>
-            <td>${esc(t.conductor||'—')}</td>
-            <td>${esc(t.establecimiento||'—')}<span class="aud-sub">${esc([t.localidad,t.provincia].filter(Boolean).join(', '))}</span></td>
-            <td><div class="ypf-badges">${(t.senales||[]).map(ypfBadgeSenal).join('') || '<span class="muted">—</span>'}</div></td>
-          </tr>`).join('')}</tbody>
-        </table>
-      </div>
-      <p class="muted aud-nota">Km y litros cada 100 km se calculan entre cargas consecutivas con odómetro válido. Los productos que no son combustible (ej. AZUL 32) no se listan acá.</p>`;
-    const btn = bg.querySelector('#ypfd-export');
-    btn.disabled = false;
-    btn.onclick = () => ypfDescargarCSV(
-      ['Fecha','Remito','Producto','Litros','Importe','Precio_L','Odometro','Km_desde_anterior','Conductor','Establecimiento','Localidad','Provincia','Origen','Senales'],
-      tickets.map(t=>[ypfFmtFecha(t.fecha), t.remito, t.producto, t.litros, t.importe_yer, t.precio_yer, t.odometro, t.km_desde_anterior, t.conductor, t.establecimiento, t.localidad, t.provincia, t.origen, (t.senales||[]).map(s=>YPF_SENALES[s]?.label||s).join(' | ')]),
-      `ypf_tickets_${dominio}`);
+    filas = await ypfCargasEnRango(q.desde, q.hasta);
   }catch(e){
     console.error(e);
-    bg.querySelector('#ypfd-body').innerHTML = `<div class="empty">No se pudieron cargar los tickets (${esc(e.message||e)}).</div>`;
+    document.getElementById('ypf-tabla').innerHTML = `<div class="empty">No se pudieron traer las cargas (${esc(e.message||e)}).</div>`;
+    return;
   }
+  if(token !== ypfRenderToken || state.view !== 'ypf' || !document.getElementById('ypf-tabla')) return; // hubo otra consulta o se cambió de hoja
+
+  // Filtro por ID Tarjeta (opciones = las que aparecen en el período)
+  const tarjetasOpts = [...new Set(filas.map(r=>r.patente_original).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es')).map(t=>({ value:t, label:t }));
+  q.tarjetas = q.tarjetas.filter(t=>tarjetasOpts.some(o=>o.value===t));
+  document.getElementById('ypf-tarjeta-slot').outerHTML = multiSelectTrigger('fy-tarjeta','car','Todas las tarjetas', tarjetasOpts, q.tarjetas);
+  document.getElementById('fy-tarjeta-trigger').onclick = (e) => {
+    e.stopPropagation();
+    abrirMultiSelectPanel('fy-tarjeta', tarjetasOpts, q.tarjetas, 'Todas las tarjetas', (nuevos)=>{
+      q.tarjetas = nuevos;
+      document.getElementById('fy-tarjeta-trigger').textContent = msSummary('Todas las tarjetas', tarjetasOpts, nuevos);
+      pintar();
+    });
+  };
+
+  let visibles = [], mostradas = YPF_FILAS_POR_TANDA;
+  const filtrar = () => {
+    let out = filas;
+    if(q.tarjetas.length){ const s = new Set(q.tarjetas); out = out.filter(r=>s.has(r.patente_original)); }
+    const b = q.busqueda.trim().toLowerCase();
+    if(b) out = out.filter(r=>YPF_COLUMNAS.some(c=>{
+      const v = c.key==='fecha' ? ypfFmtFecha(r.fecha) : c.key==='odometro' ? ypfFmtOdometro(r.odometro) : r[c.key];
+      return v!==null && v!==undefined && String(v).toLowerCase().includes(b);
+    }));
+    return ypfOrdenar(out, q.sort);
+  };
+  const fd = iso => iso.split('-').reverse().join('/');
+  const pintar = (reiniciar = true) => {
+    if(reiniciar){ visibles = filtrar(); mostradas = YPF_FILAS_POR_TANDA; }
+    const cont = document.getElementById('ypf-tabla');
+    document.getElementById('ypf-sub').textContent =
+      `${fmtNum(visibles.length,0)} ${visibles.length===1?'carga':'cargas'} del ${fd(q.desde)} al ${fd(q.hasta)}` +
+      (visibles.length !== filas.length ? ` (de ${fmtNum(filas.length,0)} en el período)` : '');
+    document.getElementById('ypf-export').disabled = !visibles.length;
+    if(!visibles.length){
+      cont.innerHTML = `<div class="empty">${filas.length ? 'Ninguna carga coincide con la búsqueda o las tarjetas elegidas.' : 'No hay cargas registradas en este período.'}</div>`;
+      return;
+    }
+    const sort = q.sort;
+    cont.innerHTML = `<table class="tabla-detalle ypf-hist">
+      <thead><tr>${YPF_COLUMNAS.map(c=>thSort(c.label, c.key, sort, c.num?'num':'')).join('')}</tr></thead>
+      <tbody>${visibles.slice(0, mostradas).map(r=>`<tr>${YPF_COLUMNAS.map(c=>`<td${c.num?' class="num"':''}>${ypfCelda(c, r)}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table>
+    ${visibles.length > mostradas ? `<div class="ypf-mas"><span class="muted">Mostrando ${fmtNum(mostradas,0)} de ${fmtNum(visibles.length,0)}</span><button class="btn btn-secondary" id="ypf-mas">Mostrar ${fmtNum(Math.min(YPF_FILAS_POR_TANDA, visibles.length-mostradas),0)} más</button></div>` : ''}`;
+    cont.querySelectorAll('th.th-sort').forEach(th=>{
+      th.onclick = () => {
+        if(sort.key === th.dataset.key) sort.dir = sort.dir==='asc' ? 'desc' : 'asc';
+        else { sort.key = th.dataset.key; sort.dir = th.dataset.key==='fecha' ? 'desc' : 'asc'; }
+        pintar();
+      };
+    });
+    const mas = document.getElementById('ypf-mas');
+    if(mas) mas.onclick = () => { const top = cont.scrollTop; mostradas += YPF_FILAS_POR_TANDA; pintar(false); cont.scrollTop = top; };
+  };
+  pintar();
+
+  document.getElementById('ypf-search').oninput = (e) => { q.busqueda = e.target.value; pintar(); document.getElementById('ypf-tabla').scrollTop = 0; };
+  document.getElementById('ypf-export').onclick = () => {
+    const lines = [YPF_COLUMNAS.map(c=>c.label.toUpperCase()).join(';'),
+      ...visibles.map(r=>[ypfFmtFecha(r.fecha), r.patente_original??'', r.litros===null?'':String(r.litros).replace('.',','), ypfFmtOdometro(r.odometro), r.conductor??'', r.establecimiento??'', r.provincia??'']
+        .map(v=>String(v).replace(/;/g,',').replace(/\n/g,' ')).join(';'))];
+    const blob = new Blob(['\uFEFF' + lines.join('\n')], { type:'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `ypf_cargas_${q.desde}_a_${q.hasta}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
 }
 
 /* ---------- Importación de la planilla YPF ---------- */
@@ -3656,7 +3419,6 @@ function ypfNumero(raw){
   const n = parseFloat(s);
   return isNaN(n) ? null : n;
 }
-const pad2 = n => String(n).padStart(2,'0');
 function ypfFechaHora(raw){
   if(raw===null || raw===undefined || raw==='') return null;
   if(raw instanceof Date && !isNaN(raw)){
@@ -3939,6 +3701,7 @@ async function ypfEjecutarImportacion(resultEl){
     }).eq('id', importacionId);
 
     invalidarCacheYpf();
+    state.ypfConsulta = null;   // al volver a la hoja se muestra el mes de la última carga
     state.importYpf = null;
     resultEl.innerHTML = '';
     document.getElementById('ypfi-file').value = '';
