@@ -535,6 +535,15 @@
   .btn-ypf-logo{height:17px;width:auto;display:block;}
   .btn-ypf-sep{width:1px;height:18px;background:rgba(255,255,255,.35);}
   .btn-ypf svg{width:14px;height:14px;flex:none;}
+  .btn-limpiar{
+    display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 13px;border-radius:var(--radius-sm);
+    border:1px solid var(--slate-200);background:#fff;color:var(--slate-600);font-weight:600;font-size:12.5px;white-space:nowrap;
+    transition:background .12s ease, color .12s ease, border-color .12s ease;
+  }
+  .btn-limpiar svg{width:14px;height:14px;flex:none;}
+  .btn-limpiar:hover:not(:disabled){background:#fdf3f1;border-color:#f0cec7;color:var(--red);}
+  .btn-limpiar:focus-visible{outline:2px solid var(--teal-700);outline-offset:2px;}
+  .btn-limpiar:disabled{color:#b3b9c4;background:#fafbfc;border-color:var(--slate-100);cursor:default;}
   .ypf-date{gap:0;cursor:pointer;}
   .ypf-date-l{font-size:12px;color:var(--slate-400);font-weight:600;margin-right:8px;}
   .ypf-date input{border:none;background:transparent;padding:0;color:var(--slate-800);font-weight:600;font-size:12.5px;font-family:inherit;}
@@ -593,6 +602,7 @@ const ICN = {
   close: '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
   plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
   fix: '<circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/>',
+  filterX: '<path d="M3 4.5h15l-5.8 7v5.8l-3.4 1.7v-7.5z"/><path d="M16.5 15.5l4.5 4.5M21 15.5l-4.5 4.5"/>',
   alert: '<path d="M12 3.2 22 20H2z"/><path d="M12 9.3v5"/><circle cx="12" cy="17.3" r="0.9" fill="currentColor" stroke="none"/>',
 };
 function icon(name, cls){
@@ -1298,13 +1308,22 @@ async function renderView(){
   }
 }
 
-function filtersBar(opts, current){
+// Botón "Limpiar filtros": queda deshabilitado cuando la hoja no tiene filtros
+// aplicados. No toca el filtro maestro (ese se limpia con su propia ✕).
+function botonLimpiarHtml(activo, id='btn-limpiar'){
+  return `<button type="button" class="btn-limpiar" id="${id}" ${activo?'':'disabled'} title="Volver los filtros de esta hoja a sus valores iniciales">${icon('filterX')}<span>Limpiar filtros</span></button>`;
+}
+function hayFiltrosGps(opts, current){
+  return !!((opts.periodos.length && current.periodo && current.periodo.length) || (current.vehiculo && current.vehiculo.length));
+}
+function filtersBar(opts, current, { limpiar = true } = {}){
   const periodoOpts = opts.periodos.map(p=>({value:p.periodo, label:p.periodo_label}));
   const vehiculoOpts = opts.dispositivos.map(texto=>({value:texto, label:texto}));
   return `
   <div class="filters">
     ${periodoOpts.length ? multiSelectTrigger('f-periodo','calendar','Todos los períodos', periodoOpts, current.periodo) : ''}
     ${multiSelectTrigger('f-vehiculo','car','Todos los dispositivos', vehiculoOpts, current.vehiculo)}
+    ${limpiar ? botonLimpiarHtml(hayFiltrosGps(opts, current)) : ''}
   </div>`;
 }
 function msSummary(allLabel, options, selected){
@@ -1320,6 +1339,8 @@ function multiSelectTrigger(id, iconName, allLabel, options, selected){
 }
 function bindFiltersBar(onChange){
   const opts = { periodo: null, vehiculo: null };
+  const limpiar = document.getElementById('btn-limpiar');
+  if(limpiar) limpiar.onclick = () => { state.filters = { periodo:[], vehiculo:[] }; onChange(); };
   if(document.getElementById('f-periodo-trigger')){
     document.getElementById('f-periodo-trigger').onclick = (e) => {
       e.stopPropagation();
@@ -2000,11 +2021,12 @@ async function renderAuditoria(content){
       <div><h2>Auditoría de consumos</h2><p>Detecta desvíos e inconsistencias para revisión, comparando cada dispositivo con su propio historial.</p></div>
     </div>
     <div class="filters">
-      ${filtersBar(opts, state.filters).replace(/^\s*<div class="filters">|<\/div>\s*$/g,'')}
+      ${filtersBar(opts, state.filters, { limpiar:false }).replace(/^\s*<div class="filters">|<\/div>\s*$/g,'')}
       ${selectPill('f-aud-tipo','alert', state.audit.tipo, [{v:'',l:'Todos los tipos de alerta'}, ...Object.entries(AUD_CATEGORIAS).map(([v,l])=>({v,l}))])}
       ${selectPill('f-aud-estado','gauge', state.audit.estado, [
         {v:'senales',l:'Con señales (sin Normal)'},{v:'todos',l:'Todos los estados'},
         {v:'prioritaria',l:'Revisión prioritaria'},{v:'revisar',l:'Revisar'},{v:'observar',l:'Observar'},{v:'normal',l:'Normal'}])}
+      ${botonLimpiarHtml(hayFiltrosGps(opts, state.filters) || state.audit.tipo!=='' || state.audit.estado!=='senales')}
     </div>
     <div class="aud-cards">${[3,2,1,0].map(tarjeta).join('')}</div>
     <div class="panel">
@@ -2021,6 +2043,11 @@ async function renderAuditoria(content){
   `;
 
   bindFiltersBar(()=>renderView());
+  document.getElementById('btn-limpiar').onclick = () => {
+    state.filters = { periodo:[], vehiculo:[] };
+    state.audit = { tipo:'', estado:'senales' };
+    renderView();
+  };
   document.getElementById('f-aud-tipo').onchange = e => { state.audit.tipo = e.target.value; renderView(); };
   document.getElementById('f-aud-estado').onchange = e => { state.audit.estado = e.target.value; renderView(); };
   content.querySelectorAll('.aud-card').forEach(b => b.onclick = () => {
@@ -3362,14 +3389,20 @@ async function renderReporteYpf(content){
   }
 
   // Período por defecto: el mes de la última carga registrada.
-  if(!state.ypfConsulta) state.ypfConsulta = { desde: ultima.slice(0,8) + '01', hasta: ultima, tarjetas:[], busqueda:'', sort:{ key:'fecha', dir:'desc' } };
+  const ypfConsultaInicial = () => ({ desde: ultima.slice(0,8) + '01', hasta: ultima, tarjetas:[], busqueda:'', sort:{ key:'fecha', dir:'desc' } });
+  if(!state.ypfConsulta) state.ypfConsulta = ypfConsultaInicial();
   const q = state.ypfConsulta;
+  const inicial = ypfConsultaInicial();
+  const hayFiltrosYpf = () => q.desde!==inicial.desde || q.hasta!==inicial.hasta || q.tarjetas.length>0 || q.busqueda.trim()!=='' ||
+                              q.sort.key!==inicial.sort.key || q.sort.dir!==inicial.sort.dir;
+  const actualizarLimpiarYpf = () => { const b = document.getElementById('btn-limpiar'); if(b) b.disabled = !hayFiltrosYpf(); };
 
   content.innerHTML = `
     <div class="filters">
       <label class="filter-pill ypf-date">${icon('calendar')}<span class="ypf-date-l">Desde</span><input type="date" id="ypf-desde" value="${esc(q.desde)}" max="${esc(ultima)}"></label>
       <label class="filter-pill ypf-date">${icon('calendar')}<span class="ypf-date-l">Hasta</span><input type="date" id="ypf-hasta" value="${esc(q.hasta)}"></label>
       <div id="ypf-tarjeta-slot"></div>
+      ${botonLimpiarHtml(hayFiltrosYpf())}
       ${ypfBotonCargarHtml('ypf-cargar')}
     </div>
     <div class="panel">
@@ -3392,6 +3425,7 @@ async function renderReporteYpf(content){
     renderView();
   };
   document.getElementById('ypf-cargar').onclick = () => abrirModalImportarYpf();
+  document.getElementById('btn-limpiar').onclick = () => { state.ypfConsulta = ypfConsultaInicial(); renderView(); };
   document.getElementById('ypf-desde').onchange = aplicarFechas;
   document.getElementById('ypf-hasta').onchange = aplicarFechas;
 
@@ -3449,6 +3483,7 @@ async function renderReporteYpf(content){
   const fd = iso => iso.split('-').reverse().join('/');
   const pintar = (reiniciar = true) => {
     if(reiniciar){ visibles = filtrar(); mostradas = YPF_FILAS_POR_TANDA; }
+    actualizarLimpiarYpf();
     const cont = document.getElementById('ypf-tabla');
     document.getElementById('ypf-sub').textContent =
       `${fmtNum(visibles.length,0)} ${visibles.length===1?'carga':'cargas'} del ${fd(q.desde)} al ${fd(q.hasta)}` +
