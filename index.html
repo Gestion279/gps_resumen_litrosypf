@@ -556,6 +556,144 @@
   @media (max-width: 780px){
     .ypf-scroll{max-height:none;}
   }
+  /* =========================================================================
+     CELULAR — mejoras de visualización (solo pantallas de hasta 780 px;
+     la versión de escritorio no se ve afectada)
+     ========================================================================= */
+  @media (max-width: 780px){
+    /* Encabezado en un solo renglón; al bajar, quedan fijas solo las pestañas */
+    .topbar{position:static;flex-wrap:nowrap;gap:10px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px));}
+    .topbar-titles{min-width:0;flex:1;gap:10px;}
+    .topbar-titles > div{min-width:0;}
+    .topbar-titles .pin{width:32px;height:32px;border-radius:9px;}
+    .topbar h1{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .topbar .meta{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .topbar-actions{gap:6px;flex:none;}
+    #btn-cargar-planilla{width:34px;height:34px;padding:0;justify-content:center;}
+    #btn-cargar-planilla .btn-txt{display:none;}
+    .master-bar{padding:4px 14px 6px 14px;}
+    .master-search{flex-basis:100%;max-width:none;height:40px;}
+    .master-search input{font-size:16px;}           /* 16px evita el zoom automático de iOS al tocar */
+    .tabbar{position:sticky;top:0;z-index:20;padding:6px 14px 0 10px;box-shadow:0 1px 0 var(--teal-600);}
+
+    /* Filtros ordenados de a dos por renglón; "Limpiar filtros" queda como ícono */
+    .filters{gap:8px;margin-bottom:16px;}
+    .filters > .filter-pill{flex:1 1 140px;min-width:0;height:40px;}
+    .filters .ms-trigger{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left;}
+    .filters .filter-pill select{width:100%;min-width:0;}
+    .btn-limpiar{flex:none;width:40px;height:40px;padding:0;justify-content:center;}
+    .btn-limpiar span{display:none;}
+    .btn-limpiar svg{width:16px;height:16px;}
+    .ypf-date{flex:1 1 150px;}
+    .ypf-date > svg{display:none;}
+    .ypf-date-l{margin-right:6px;}
+    .ypf-date input{flex:1;min-width:0;width:100%;}
+    .btn-ypf{flex:1 1 100%;justify-content:center;height:42px;}
+
+    /* Listas desplegables como panel inferior, siempre dentro de la pantalla */
+    .ms-panel{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;border-radius:14px 14px 0 0;
+      padding:14px 14px calc(14px + env(safe-area-inset-bottom,0px)) 14px;box-shadow:0 -10px 40px rgba(15,23,42,.25);z-index:60;}
+    .ms-search input{font-size:16px;padding:9px 11px;}
+    .ms-list{max-height:45vh;}
+    .ms-item{padding:9px 4px;font-size:14px;}
+    .ms-actions .btn{padding:9px 16px;font-size:14px;}
+
+    /* Indicadores en grilla de 2 columnas, sin scroll lateral */
+    .kpi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;gap:8px;margin-bottom:18px;}
+    .kpi-card{min-width:0;}
+    .kpi-card .label{white-space:normal;}
+
+    /* Paneles y gráficos */
+    .panel{margin-bottom:18px;}
+    .panel-head{padding:14px;}
+    .panel-head-actions{width:100%;}
+    .panel-head-actions .search-box{flex:1;min-width:0;}
+    .search-box input{width:100%;min-width:0;font-size:16px;}
+    .panel-body{padding:0 14px 14px 14px;}
+    .pivot-scroll{margin:0 14px 14px 14px;}
+    .panel-graf .panel-head, .ind-grid .panel-head{padding:14px 14px 8px 14px;}
+    .panel-graf .panel-body, .ind-grid .panel-body{padding:0 10px 12px 10px;}
+    .panel-graf .graf-area, .ind-chart{height:auto;}
+    .panel-graf .graf-area svg, .ind-chart svg{height:auto !important;display:block;}
+    .ind-grid{gap:14px;}
+    .ind-grid .pivot-scroll{margin:0 14px 14px 14px;}
+    .ind-toolbar .search-box{flex:1;}
+
+    /* Tablas dinámicas: columna de vehículo más angosta y en dos renglones */
+    table.pivot-table th.sticky-col, table.pivot-table td.sticky-col,
+    .ind-grid table.pivot-table th.sticky-col, .ind-grid table.pivot-table td.sticky-col{
+      white-space:normal;min-width:118px;max-width:140px;font-size:12px;line-height:1.25;}
+    table.pivot-table td, table.pivot-table th{padding:7px 10px;}
+
+    /* Detalle por vehículo (General) e Histórico YPF: cada fila como tarjeta */
+    table.tabla-detalle, table.ypf-hist,
+    table.tabla-detalle tbody, table.ypf-hist tbody{display:block;}
+    table.tabla-detalle thead, table.ypf-hist thead{display:block;}
+    table.tabla-detalle thead tr, table.ypf-hist thead tr{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px 0;scrollbar-width:none;}
+    table.tabla-detalle thead tr::-webkit-scrollbar, table.ypf-hist thead tr::-webkit-scrollbar{display:none;}
+    .pivot-scroll table.tabla-detalle thead th, .pivot-scroll table.ypf-hist thead th{
+      position:static;box-shadow:none;flex:none;border:1px solid var(--slate-200);border-radius:99px;
+      padding:6px 11px;background:#fff;font-size:10.5px;}
+    table.tabla-detalle thead th:empty{display:none;}
+    table.tabla-detalle tbody tr, table.ypf-hist tbody tr{
+      display:grid;background:#fff !important;border:1px solid var(--slate-100);border-radius:var(--radius-sm);
+      margin-bottom:8px;padding:11px 12px;box-shadow:var(--shadow-card);}
+    table.tabla-detalle td, table.ypf-hist td,
+    .pivot-scroll table.tabla-detalle td{padding:0;border:none;white-space:normal;background:none !important;text-align:left;}
+    #tabla-detalle.pivot-scroll{max-height:72vh !important;overflow-y:auto;overflow-x:hidden;margin:0 10px 10px 10px;padding:0 4px;}
+    table.tabla-detalle thead{position:sticky;top:0;z-index:3;background:#fff;}
+    .ypf-scroll{max-height:none;min-height:0;overflow:visible;}
+
+    /* General: vehículo y estado arriba, período debajo, métricas en 3 columnas */
+    table.tabla-detalle tbody tr{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px;}
+    table.tabla-detalle td.td-disp{grid-column:1 / 3;order:1;}
+    table.tabla-detalle td.td-estado{grid-column:3;order:2;justify-self:end;}
+    table.tabla-detalle td.td-per{grid-column:1 / -1;order:3;margin-top:-6px;font-size:11.5px;color:var(--slate-400);}
+    table.tabla-detalle td.td-m{order:4;font-size:13px;font-weight:600;color:var(--navy-950);font-variant-numeric:tabular-nums;}
+    table.tabla-detalle td.td-m::before{content:attr(data-l);display:block;font-size:10px;font-weight:600;color:var(--slate-400);margin-bottom:1px;}
+    table.tabla-detalle td.row-chevron{display:none;}
+    table.tabla-detalle tr.row-click:active{background:var(--teal-50) !important;}
+
+    /* Histórico YPF: tarjeta con ID y litros arriba, fecha y odómetro, y el resto debajo */
+    table.ypf-hist tbody tr{grid-template-columns:minmax(0,1fr) auto;gap:3px 12px;}
+    table.ypf-hist td.c-patente_original{grid-column:1;grid-row:1;font-size:14px;}
+    table.ypf-hist td.c-litros{grid-column:2;grid-row:1;text-align:right;font-size:15px;font-weight:700;color:var(--navy-950);}
+    table.ypf-hist td.c-litros::after{content:" L";font-size:11px;font-weight:600;color:var(--slate-400);}
+    table.ypf-hist td.c-fecha{grid-column:1;grid-row:2;font-size:12px;color:var(--slate-600);}
+    table.ypf-hist td.c-odometro{grid-column:2;grid-row:2;text-align:right;font-size:12px;color:var(--slate-600);}
+    table.ypf-hist td.c-odometro:not(:empty)::before{content:"Odóm. ";color:var(--slate-400);}
+    table.ypf-hist td.c-conductor{grid-column:1 / -1;grid-row:3;font-size:12.5px;margin-top:5px;}
+    table.ypf-hist td.c-establecimiento{grid-column:1 / -1;grid-row:4;font-size:12px;color:var(--slate-600);}
+    table.ypf-hist td.c-provincia{grid-column:1 / -1;grid-row:5;font-size:11.5px;color:var(--slate-400);}
+    table.ypf-hist tbody tr:hover td{background:none !important;}
+    .ypf-mas{flex-wrap:wrap;gap:10px;padding:6px 0 4px 0;}
+    .ypf-mas .btn{width:100%;justify-content:center;}
+
+    /* Detalle de un vehículo: el nombre ya está arriba, no se repite en cada fila */
+    table.veh-tabla .veh-dispo{display:none;}
+    table.veh-tabla td, table.veh-tabla th{padding:9px 10px;}
+
+    /* Auditoría */
+    .aud-head h2{font-size:16px;}
+    .aud-cards{gap:8px;margin-bottom:16px;}
+    .aud-card{padding:11px 12px;}
+    .aud-card-n{font-size:20px;}
+
+    /* Ventanas: aprovechan toda la pantalla */
+    .modal-bg{padding:8px;align-items:flex-end;}
+    .modal{max-height:calc(100vh - 16px);overflow-y:auto;border-radius:14px;padding:20px 16px;}
+    .modal.aud-modal{max-height:calc(100vh - 16px);}
+    .aud-modal-head{flex-direction:column-reverse;gap:8px;padding:14px 16px 12px 16px;}
+    .aud-modal-actions{align-self:flex-end;}
+    .aud-modal-head h3{font-size:16px;}
+    .aud-modal-body{padding:14px 16px 18px 16px;}
+    .modal h3 > svg{width:18px;height:18px;flex:none;}
+    .dropzone{padding:26px 14px;}
+    .summary-pill{min-width:0;flex:1 1 40%;padding:8px 12px;}
+
+    /* Avisos */
+    .toast{left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));max-width:none;}
+  }
   html{scroll-padding-top:env(safe-area-inset-top,0px);}
 </style>
 </head>
@@ -608,6 +746,9 @@ const ICN = {
 function icon(name, cls){
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${cls||''}">${ICN[name]||''}</svg>`;
 }
+// Pantalla de celular (mismo corte que el CSS responsive). Solo se usa para
+// ajustes de visualización; en escritorio todo queda igual.
+function esMovil(){ return window.matchMedia('(max-width: 780px)').matches; }
 const KPI_TINTS = { blue:'kpi-blue', green:'kpi-green', teal:'kpi-teal', amber:'kpi-amber', violet:'kpi-violet', rose:'kpi-rose' };
 
 /* =========================================================================
@@ -1174,7 +1315,7 @@ function render(){
         <div class="master-search">
           ${icon('search')}
           <input id="master-q" type="text" autocomplete="off" spellcheck="false"
-            placeholder="Filtro maestro: patente, zona, modelo, conductor, estación, provincia…"
+            placeholder="${esMovil() ? 'Filtro maestro: patente, zona, conductor…' : 'Filtro maestro: patente, zona, modelo, conductor, estación, provincia…'}"
             aria-label="Filtro maestro para todas las hojas" value="${esc(state.masterQuery || '')}">
           <button type="button" class="master-clear" id="master-clear" title="Quitar filtro" aria-label="Quitar filtro maestro">${icon('close')}</button>
         </div>
@@ -1198,7 +1339,7 @@ function render(){
   const tabActiva = document.querySelector('.tab-item.active');
   if(tabActiva){ const bar = tabActiva.parentElement; bar.scrollLeft = Math.max(0, tabActiva.offsetLeft - (bar.clientWidth - tabActiva.offsetWidth) / 2); }
   document.getElementById('topbar-actions').innerHTML = `
-    ${state.view==='ypf' ? '' : `<button class="btn btn-primary" id="btn-cargar-planilla">${icon('upload')} Cargar planilla</button>`}
+    ${state.view==='ypf' ? '' : `<button class="btn btn-primary" id="btn-cargar-planilla" aria-label="Cargar planilla">${icon('upload')}<span class="btn-txt">Cargar planilla</span></button>`}
     <button class="icon-btn" id="btn-refresh" title="Actualizar datos desde Supabase">${icon('refresh')}</button>
     <button class="icon-btn" id="btn-dots" title="Más opciones">${icon('dots')}</button>
     <button class="icon-btn" id="btn-install-icon" style="display:none" title="Instalar app">${icon('install')}</button>
@@ -1311,7 +1452,7 @@ async function renderView(){
 // Botón "Limpiar filtros": queda deshabilitado cuando la hoja no tiene filtros
 // aplicados. No toca el filtro maestro (ese se limpia con su propia ✕).
 function botonLimpiarHtml(activo, id='btn-limpiar'){
-  return `<button type="button" class="btn-limpiar" id="${id}" ${activo?'':'disabled'} title="Volver los filtros de esta hoja a sus valores iniciales">${icon('filterX')}<span>Limpiar filtros</span></button>`;
+  return `<button type="button" class="btn-limpiar" id="${id}" ${activo?'':'disabled'} aria-label="Limpiar filtros" title="Volver los filtros de esta hoja a sus valores iniciales">${icon('filterX')}<span>Limpiar filtros</span></button>`;
 }
 function hayFiltrosGps(opts, current){
   return !!((opts.periodos.length && current.periodo && current.periodo.length) || (current.vehiculo && current.vehiculo.length));
@@ -2507,6 +2648,11 @@ const PALETA_GRAF = {
 const GRAF_ANCHO_COMPLETO = { w:1200, h:270, mostrarValores:true, ejeAdaptativo:true, anchoMaxBarra:46, decTicks:0 };
 
 function miniBarChart(labels, values, opts={}){
+  // Celular: lienzo del ancho real de la pantalla, así los textos del gráfico
+  // se ven a tamaño legible en lugar de quedar achicados. Escritorio no cambia.
+  if(esMovil() && (opts.w || 960) > 440){
+    opts = { ...opts, w:360, h:Math.max(240, Math.min(opts.h || 260, 260)), anchoMaxBarra:Math.min(opts.anchoMaxBarra ?? Infinity, 24) };
+  }
   const { w = 960, h = 260, color = '#20b5a2', decTicks = 0, decValores = 1, mostrarValores = false,
           // Opciones solo visuales (las usa la hoja Indicadores):
           titulos = null,          // texto del tooltip de cada barra (por defecto, la etiqueta)
@@ -2740,15 +2886,15 @@ function tablaReportes(rows, activosSet){
         const modelo = r.modelo_periodo || r.vehiculos?.label;
         const nombre = r.dispositivo_original || nombreCompletoConZona(dominio, modelo, zona);
         return `<tr class="row-click" data-dominio="${esc(dominio)}">
-        <td>${esc(r.periodo_label||'—')}</td>
-        <td><span class="device-name">${esc(nombre||'—')}</span>${r.es_atipico?' <span class="badge atipico">⚠</span>':''}</td>
-        <td class="num">${fmtNum(r.distancia_km,0)}</td>
-        <td class="num">${fmtNum(r.litros_ypf,1)}</td>
-        <td class="num">${(r.litros_ypf && r.distancia_km)? fmtNum(r.distancia_km/r.litros_ypf,2) : '—'}</td>
-        <td class="num">${fmtNum(r.horas_motor,1)}</td>
-        <td class="num">${fmtNum(r.horas_ralenti,1)}</td>
-        <td class="num">${fmtNum(r.velocidad_maxima,0)}</td>
-        <td><span class="pill-estado ${activo?'activo':'inactivo'}">${activo?'Activo':'Inactivo'}</span></td>
+        <td class="td-per">${esc(r.periodo_label||'—')}</td>
+        <td class="td-disp"><span class="device-name">${esc(nombre||'—')}</span>${r.es_atipico?' <span class="badge atipico">⚠</span>':''}</td>
+        <td class="num td-m" data-l="Km">${fmtNum(r.distancia_km,0)}</td>
+        <td class="num td-m" data-l="Litros">${fmtNum(r.litros_ypf,1)}</td>
+        <td class="num td-m" data-l="Km/L">${(r.litros_ypf && r.distancia_km)? fmtNum(r.distancia_km/r.litros_ypf,2) : '—'}</td>
+        <td class="num td-m" data-l="Hs motor">${fmtNum(r.horas_motor,1)}</td>
+        <td class="num td-m" data-l="Hs ralentí">${fmtNum(r.horas_ralenti,1)}</td>
+        <td class="num td-m" data-l="Vel. máx">${fmtNum(r.velocidad_maxima,0)}</td>
+        <td class="td-estado"><span class="pill-estado ${activo?'activo':'inactivo'}">${activo?'Activo':'Inactivo'}</span></td>
         <td class="row-chevron">${icon('chevronRight')}</td>
       </tr>`;
       }).join('')}
@@ -2831,18 +2977,18 @@ async function renderVehiculoDetalle(content, vehiculoDominio){
     <div class="panel">
       <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('chart')}</span><h2>Evolución mensual</h2></div></div>
       <div class="panel-body">
-        ${reportes.length ? '<canvas id="v-chart" height="90"></canvas>' : '<div class="empty">Sin histórico todavía para este vehículo.</div>'}
+        ${reportes.length ? `<canvas id="v-chart" height="${esMovil() ? 230 : 90}"></canvas>` : '<div class="empty">Sin histórico todavía para este vehículo.</div>'}
       </div>
     </div>
     <div class="panel">
       <div class="panel-head"><div class="panel-head-left"><span class="ic">${icon('calendar')}</span><h2>Reportes por período</h2></div></div>
       <div class="panel-body table-wrap">
-        <table>
-          <thead><tr><th>Período</th><th>Dispositivo (como en el reporte)</th><th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th><th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">Vel. máx</th></tr></thead>
+        <table class="veh-tabla">
+          <thead><tr><th>Período</th><th class="veh-dispo">Dispositivo (como en el reporte)</th><th class="num">Km</th><th class="num">Litros</th><th class="num">Km/L</th><th class="num">Hs motor</th><th class="num">Hs ralentí</th><th class="num">Vel. máx</th></tr></thead>
           <tbody>
             ${reportes.map(r=>`<tr>
               <td>${esc(r.periodo_label)}</td>
-              <td>${esc(r.dispositivo_original || nombreCompletoConZona(vehiculo.dominio, r.modelo_periodo||vehiculo.label, r.zona_periodo||vehiculo.region))}</td>
+              <td class="veh-dispo">${esc(r.dispositivo_original || nombreCompletoConZona(vehiculo.dominio, r.modelo_periodo||vehiculo.label, r.zona_periodo||vehiculo.region))}</td>
               <td class="num">${fmtNum(r.distancia_km,0)}</td>
               <td class="num">${fmtNum(r.litros_ypf,1)}</td>
               <td class="num">${(r.litros_ypf && r.distancia_km)? fmtNum(r.distancia_km/r.litros_ypf,2) : '—'}</td>
@@ -3270,7 +3416,7 @@ async function ejecutarImportacion(resultEl){
 // Supabase (la app usa la anon key). Cambiar a true solo si hace falta.
 const YPF_GUARDAR_DNI = false;
 const YPF_LOTE_UPSERT = 500;
-const YPF_FILAS_POR_TANDA = 500;
+const YPF_FILAS_POR_TANDA = esMovil() ? 100 : 500;   // en celular se dibujan tandas más cortas
 // Logo YPF (imagen provista por el usuario, recortada), usado en el botón de carga.
 const YPF_LOGO_SRC = 'data:image/png;base64,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';
 function ypfBotonCargarHtml(id){
@@ -3497,7 +3643,7 @@ async function renderReporteYpf(content){
     const sort = q.sort;
     cont.innerHTML = `<table class="tabla-detalle ypf-hist">
       <thead><tr>${YPF_COLUMNAS.map(c=>thSort(c.label, c.key, sort, c.num?'num':'')).join('')}</tr></thead>
-      <tbody>${visibles.slice(0, mostradas).map(r=>`<tr>${YPF_COLUMNAS.map(c=>`<td${c.num?' class="num"':''}>${ypfCelda(c, r)}</td>`).join('')}</tr>`).join('')}</tbody>
+      <tbody>${visibles.slice(0, mostradas).map(r=>`<tr>${YPF_COLUMNAS.map(c=>`<td class="c-${c.key}${c.num?' num':''}">${ypfCelda(c, r)}</td>`).join('')}</tr>`).join('')}</tbody>
     </table>
     ${visibles.length > mostradas ? `<div class="ypf-mas"><span class="muted">Mostrando ${fmtNum(mostradas,0)} de ${fmtNum(visibles.length,0)}</span><button class="btn btn-secondary" id="ypf-mas">Mostrar ${fmtNum(Math.min(YPF_FILAS_POR_TANDA, visibles.length-mostradas),0)} más</button></div>` : ''}`;
     cont.querySelectorAll('th.th-sort').forEach(th=>{
