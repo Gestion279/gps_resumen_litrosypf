@@ -915,18 +915,30 @@ function extraerPatenteClave(textoCompleto){
   return encontrada ? encontrada.toUpperCase() : null;
 }
 
-// Distancia: puede venir como número crudo (ya en km) o como texto "2501 Km" / "364 m"
+// Convierte un número en texto respetando separadores de miles/decimales:
+//   "6.238,6" -> 6238.6 | "3.767" -> 3767 | "19,4" -> 19.4 | "1,234.5" -> 1234.5 | "2501" -> 2501
+function parseNumeroLocal(t){
+  t = String(t).replace(/\s/g,'');
+  if(/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(t) || /^-?\d+,\d+$/.test(t))
+    return parseFloat(t.replace(/\./g,'').replace(',','.'));   // formato AR: 1.234,56
+  if(/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t))
+    return parseFloat(t.replace(/,/g,''));                       // formato US: 1,234.56
+  return parseFloat(t);
+}
+
+// Distancia: puede venir como número crudo (ya en km) o como texto
+// "2501 Km" / "6.238,6 km" / "364 m"
 function parseDistancia(raw){
   if(raw===null || raw===undefined || raw==='') return null;
   if(typeof raw === 'number') return round(raw, 3);
-  const s = String(raw).trim().replace(',', '.');
-  const m = s.match(/([\d.]+)\s*(km|m)\b/i);
+  const s = String(raw).trim();
+  const m = s.match(/([\d.,]+)\s*(km|m)\b/i);
   if(m){
-    const val = parseFloat(m[1]);
+    const val = parseNumeroLocal(m[1]);
     if(isNaN(val)) return null;
     return m[2].toLowerCase()==='km' ? round(val,3) : round(val/1000,3);
   }
-  const asNum = parseFloat(s);
+  const asNum = parseNumeroLocal(s);
   return isNaN(asNum) ? null : round(asNum,3);
 }
 
